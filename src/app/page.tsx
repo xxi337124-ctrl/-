@@ -1,26 +1,89 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import DashboardContent from "@/components/pages/Dashboard";
 import TopicAnalysisContent from "@/components/pages/TopicAnalysis";
-import ContentCreationContent from "@/components/pages/ContentCreation";
 import PublishManagementContent from "@/components/pages/PublishManagement";
 import HistoryContent from "@/components/pages/History";
+import SettingsContent from "@/components/pages/Settings";
+import SmartCreationHub from "@/components/pages/SmartCreationHub";
+import XiaohongshuRewrite from "@/components/pages/XiaohongshuRewrite";
+import { GlobalToast } from "@/components/GlobalToast";
+import { useGlobalStore } from "@/lib/stores/globalStore";
 
-type ActiveTab = "dashboard" | "topic-analysis" | "content-creation" | "publish-management" | "history";
+type ActiveTab = "dashboard" | "smart-creation" | "topic-analysis" | "publish-management" | "history" | "settings" | "xiaohongshu-rewrite";
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
+// 提取使用 useSearchParams 的组件，需要用 Suspense 包裹
+function TabHandler({ onTabChange }: { onTabChange: (tab: ActiveTab) => void }) {
   const searchParams = useSearchParams();
 
-  // 监听URL参数,自动切换标签
   useEffect(() => {
     const tab = searchParams.get("tab") as ActiveTab;
-    if (tab && ["dashboard", "topic-analysis", "content-creation", "publish-management", "history"].includes(tab)) {
-      setActiveTab(tab);
+
+    // 向后兼容: 重定向旧的content-creation路由到smart-creation
+    if (tab === "content-creation" as string) {
+      onTabChange("smart-creation");
+      return;
     }
-  }, [searchParams]);
+
+    if (tab && ["dashboard", "smart-creation", "topic-analysis", "publish-management", "history", "settings", "xiaohongshu-rewrite"].includes(tab)) {
+      onTabChange(tab);
+    }
+  }, [searchParams, onTabChange]);
+
+  return null;
+}
+
+function HomeContent({ activeTab, setActiveTab }: { activeTab: ActiveTab; setActiveTab: (tab: ActiveTab) => void }) {
+  const { activeTask, taskProgress, updateTask } = useGlobalStore();
+
+  // 全局检查是否有正在进行的创作任务（支持两种任务类型）
+  useEffect(() => {
+    const checkActiveTask = () => {
+      // 如果全局store中没有任务，检查localStorage
+      if (!activeTask) {
+        const oldTaskId = localStorage.getItem('contentCreation_taskId');
+        const newTaskId = localStorage.getItem('smartCreation_taskId');
+        const taskId = newTaskId || oldTaskId;
+
+        if (taskId && activeTab !== 'smart-creation') {
+          // 从localStorage恢复任务到store
+          const platform = localStorage.getItem('smartCreation_platform') || localStorage.getItem('contentCreation_platform');
+          useGlobalStore.getState().startTask(taskId, 'content-creation', platform || undefined);
+        }
+      }
+
+      // 如果有活动任务，轮询任务状态
+      if (activeTask && activeTask.status !== 'COMPLETED' && activeTask.status !== 'FAILED') {
+        fetch(`/api/content-creation/${activeTask.id}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.data.task) {
+              const task = data.data.task;
+              updateTask({
+                status: task.status,
+                progress: task.progress || 0,
+                result: task.result,
+              });
+
+              if (task.status === 'COMPLETED') {
+                useGlobalStore.getState().completeTask(task.result);
+              } else if (task.status === 'FAILED') {
+                useGlobalStore.getState().failTask(task.error || '创作失败');
+              }
+            }
+          })
+          .catch((err) => {
+            console.error('轮询任务失败:', err);
+          });
+      }
+    };
+
+    checkActiveTask();
+    const interval = setInterval(checkActiveTask, 3000);
+    return () => clearInterval(interval);
+  }, [activeTab, activeTask, updateTask]);
 
   const navigation = [
     {
@@ -35,26 +98,39 @@ export default function Home() {
       description: "实时统计与分析",
     },
     {
-      id: "topic-analysis" as ActiveTab,
-      name: "选题洞察",
+      id: "smart-creation" as ActiveTab,
+      name: "🚀 智能创作中心",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      ),
+      color: "gradient-purple",
+      description: "6天冲刺 + AI创作 + 项目管理",
+      isNew: true,
+    },
+    {
+      id: "topic-analysis" as ActiveTab,
+      name: "公众号爆文",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
       color: "indigo",
-      description: "智能分析热门内容",
+      description: "智能分析热门公众号文章",
     },
     {
-      id: "content-creation" as ActiveTab,
-      name: "AI创作",
+      id: "xiaohongshu-rewrite" as ActiveTab,
+      name: "小红书二创",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
-      color: "purple",
-      description: "一键生成高质量文章",
+      color: "pink",
+      description: "AI智能二创小红书内容",
+      isNew: true,
     },
     {
       id: "publish-management" as ActiveTab,
@@ -78,10 +154,29 @@ export default function Home() {
       color: "pink",
       description: "查看历史分析记录",
     },
+    {
+      id: "settings" as ActiveTab,
+      name: "创作设置",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+      color: "orange",
+      description: "配置提示词和风格",
+    },
   ];
 
   const getColorClasses = (color: string, isActive: boolean) => {
     const colors = {
+      "gradient-purple": {
+        bg: isActive ? "bg-gradient-to-br from-purple-50 to-pink-50" : "hover:bg-gradient-to-br hover:from-purple-50/50 hover:to-pink-50/50",
+        border: isActive ? "border-purple-500" : "border-transparent hover:border-purple-200",
+        icon: isActive ? "bg-gradient-to-br from-purple-500 via-purple-600 to-pink-500" : "bg-gray-100",
+        iconText: isActive ? "text-white" : "text-gray-400",
+        text: isActive ? "text-purple-600" : "text-gray-600 group-hover:text-purple-600",
+      },
       blue: {
         bg: isActive ? "bg-blue-50" : "hover:bg-blue-50/50",
         border: isActive ? "border-blue-500" : "border-transparent hover:border-blue-200",
@@ -117,6 +212,13 @@ export default function Home() {
         iconText: isActive ? "text-white" : "text-gray-400",
         text: isActive ? "text-emerald-600" : "text-gray-600 group-hover:text-emerald-600",
       },
+      orange: {
+        bg: isActive ? "bg-orange-50" : "hover:bg-orange-50/50",
+        border: isActive ? "border-orange-500" : "border-transparent hover:border-orange-200",
+        icon: isActive ? "bg-gradient-to-br from-orange-500 to-amber-500" : "bg-gray-100",
+        iconText: isActive ? "text-white" : "text-gray-400",
+        text: isActive ? "text-orange-600" : "text-gray-600 group-hover:text-orange-600",
+      },
     };
     return colors[color as keyof typeof colors];
   };
@@ -125,14 +227,18 @@ export default function Home() {
     switch (activeTab) {
       case "dashboard":
         return <DashboardContent />;
+      case "smart-creation":
+        return <SmartCreationHub />;
       case "topic-analysis":
         return <TopicAnalysisContent />;
       case "history":
         return <HistoryContent />;
-      case "content-creation":
-        return <ContentCreationContent />;
       case "publish-management":
         return <PublishManagementContent />;
+      case "xiaohongshu-rewrite":
+        return <XiaohongshuRewrite />;
+      case "settings":
+        return <SettingsContent />;
       default:
         return <DashboardContent />;
     }
@@ -140,8 +246,49 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-white">
+      {/* 全局Toast提示 */}
+      <GlobalToast />
+
+      {/* 全局任务进度条 */}
+      {activeTask && activeTask.status !== 'COMPLETED' && activeTask.status !== 'FAILED' && activeTab !== 'smart-creation' && activeTab !== 'xiaohongshu-rewrite' && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg">
+          <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="font-medium">{activeTask.progressMessage || 'AI创作生成中...'}</span>
+                <span className="text-sm opacity-90">{taskProgress}%</span>
+              </div>
+              <button
+                onClick={() => {
+                  // 根据任务类型跳转
+                  if (activeTask.type === 'xiaohongshu-rewrite') {
+                    setActiveTab('xiaohongshu-rewrite');
+                  } else {
+                    setActiveTab('smart-creation');
+                  }
+                }}
+                className="px-4 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg text-sm font-medium transition-all"
+              >
+                查看进度 →
+              </button>
+            </div>
+            {/* 进度条 */}
+            <div className="mt-2 h-1 bg-white bg-opacity-30 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white transition-all duration-500"
+                style={{ width: `${taskProgress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Left Sidebar */}
-      <div className="w-80 border-r border-gray-200 bg-gray-50/50 flex flex-col">
+      <div
+        className="w-80 border-r border-gray-200 bg-gray-50/50 flex flex-col relative z-50"
+        style={{ marginTop: (activeTask && activeTask.status !== 'COMPLETED' && activeTask.status !== 'FAILED' && activeTab !== 'smart-creation' && activeTab !== 'xiaohongshu-rewrite') ? '80px' : '0' }}
+      >
         {/* Header */}
         <div className="p-8 border-b border-gray-200">
           <div className="flex items-center gap-4 mb-3">
@@ -175,9 +322,16 @@ export default function Home() {
                   <div className={colorClasses.iconText}>{item.icon}</div>
                 </div>
                 <div className="flex-1 min-w-0 text-left">
-                  <h3 className={`font-semibold transition-colors ${colorClasses.text}`}>
-                    {item.name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className={`font-semibold transition-colors ${colorClasses.text}`}>
+                      {item.name}
+                    </h3>
+                    {item.isNew && (
+                      <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold rounded uppercase animate-pulse">
+                        New
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
                 </div>
                 {isActive && (
@@ -210,9 +364,30 @@ export default function Home() {
       </div>
 
       {/* Right Content Area */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ marginTop: (activeTask && activeTask.status !== 'COMPLETED' && activeTask.status !== 'FAILED' && activeTab !== 'smart-creation' && activeTab !== 'xiaohongshu-rewrite') ? '80px' : '0' }}
+      >
         <div className="transition-opacity duration-300">{renderContent()}</div>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
+
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">加载中...</p>
+        </div>
+      </div>
+    }>
+      <TabHandler onTabChange={setActiveTab} />
+      <HomeContent activeTab={activeTab} setActiveTab={setActiveTab} />
+    </Suspense>
   );
 }

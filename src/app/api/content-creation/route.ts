@@ -21,6 +21,11 @@ async function generateArticle(
   const styleGuide = getStyleGuide(style);
   const platform = getPlatformName(style);
 
+  // 获取用户的提示词设置
+  const promptSettings = await prisma.promptSettings.findUnique({
+    where: { userId: 'default' }
+  });
+
   // 根据风格选择不同的提示词模板
   let prompt: string;
 
@@ -65,6 +70,17 @@ async function generateArticle(
       });
   }
 
+  // 获取平台特定的文案提示词
+  let customTextPrompt = '';
+  if (style === 'xiaohongshu' || style === 'casual') {
+    customTextPrompt = promptSettings?.xiaohongshuTextPrompt || '以轻松活泼的方式撰写，多用表情符号和网络用语，句子简短有力，适合快速浏览。强调实用性和分享价值，语言贴近年轻群体。';
+  } else if (style === 'wechat' || style === 'professional') {
+    customTextPrompt = promptSettings?.wechatTextPrompt || '以专业正式的方式撰写，结构清晰，段落分明，适合深度阅读。使用数据和案例支撑观点，语言严谨但不失亲和力。';
+  } else {
+    // 兼容旧的textPrompt字段
+    customTextPrompt = promptSettings?.textPrompt || '以专业但易懂的方式撰写，结合实际案例，语言自然流畅';
+  }
+
   try {
     const result = await openaiClient.generateJSON<{
       title: string;
@@ -94,6 +110,9 @@ async function generateArticle(
 - 短句和长句交替使用
 - 适当打破结构的完整性
 - 像和朋友聊天一样自然
+
+用户自定义风格指南:
+${customTextPrompt}
 
 请严格按照JSON格式返回,不要添加任何额外解释。确保content包含完整HTML格式文章。`,
       timeout: 120000, // 2分钟超时
@@ -222,40 +241,57 @@ function insertImagesIntelligently(content: string, images: string[]): string {
   return result.join("");
 }
 
-// 模拟Unsplash API - 获取图片（已废弃，保留以防降级）
-async function fetchUnsplashImages(query: string, count: number = 3): Promise<string[]> {
-  // TODO: 实际使用时替换为真实的Unsplash API调用
-  // const response = await fetch(
-  //   `https://api.unsplash.com/search/photos?query=${query}&per_page=${count}`,
-  //   { headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
-  // );
-
-  // 模拟返回图片URL
-  return Array.from({ length: count }, (_, i) =>
-    `https://source.unsplash.com/800x600/?${query},${i}`
-  );
-}
+// 注意: fetchUnsplashImages 已废弃，现在使用 SiliconFlow 图片生成
+// 如需降级方案，可以从 git 历史中恢复此函数
 
 export async function POST(request: NextRequest) {
   try {
-    const { insightId, topicIndexes, length, style, platform, imageStrategy } = await request.json();
+    const body = await request.json();
+    const { mode, insightId, topicIndexes, fetchId, articleIndex, length, style, platform, imageStrategy } = body;
+
+    // 根据mode决定如何创建任务
+    let taskData: any = {
+      length,
+      style,
+      platform,
+      imageStrategy: imageStrategy || "auto",
+      status: "PENDING",
+      progress: 0,
+      progressMessage: "任务已创建,等待处理...",
+    };
+
+    if (mode === 'direct') {
+      // direct模式：基于单篇文章
+      if (!fetchId || articleIndex === undefined) {
+        return NextResponse.json(
+          { success: false, error: "direct模式缺少fetchId或articleIndex" },
+          { status: 400 }
+        );
+      }
+
+      // 为direct模式创建一个临时的insight记录（或者修改CreationTask schema支持fetchId）
+      // 这里采用临时方案：将fetchId和articleIndex存储在topicIndexes字段
+      taskData.insightId = null; // direct模式不需要insightId
+      taskData.topicIndexes = JSON.stringify({ mode: 'direct', fetchId, articleIndex });
+    } else {
+      // insight模式（原有逻辑）
+      if (!insightId || !topicIndexes) {
+        return NextResponse.json(
+          { success: false, error: "insight模式缺少insightId或topicIndexes" },
+          { status: 400 }
+        );
+      }
+
+      taskData.insightId = insightId;
+      taskData.topicIndexes = JSON.stringify(topicIndexes);
+    }
 
     // 1. 创建任务记录
     const task = await prisma.creationTask.create({
-      data: {
-        insightId,
-        topicIndexes: JSON.stringify(topicIndexes),
-        length,
-        style,
-        platform,
-        imageStrategy: imageStrategy || "auto",
-        status: "PENDING",
-        progress: 0,
-        progressMessage: "任务已创建,等待处理...",
-      },
+      data: taskData,
     });
 
-    console.log(`📝 创建任务: ${task.id}`);
+    console.log(`📝 创建任务: ${task.id} (${mode || 'insight'}模式)`);
 
     // 2. 立即返回taskId,不等待完成
     // 异步执行创作流程
@@ -281,6 +317,8 @@ export async function POST(request: NextRequest) {
 // 异步处理创作任务
 async function processCreationTask(taskId: string) {
   try {
+    console.log(`\n🚀 ========== 开始处理任务 ${taskId} ==========`);
+
     // 更新状态为处理中
     await prisma.creationTask.update({
       where: { id: taskId },
@@ -290,6 +328,8 @@ async function processCreationTask(taskId: string) {
         progressMessage: "开始内容创作流程...",
       },
     });
+
+    console.log('✅ 任务状态已更新为 PROCESSING');
 
     const task = await prisma.creationTask.findUnique({
       where: { id: taskId },
@@ -305,23 +345,74 @@ async function processCreationTask(taskId: string) {
     console.log(`  - 发布平台: ${task.platform}`);
     console.log(`  - 配图策略: ${task.imageStrategy}`);
 
-    // 1. 获取洞察数据
-    await prisma.creationTask.update({
-      where: { id: taskId },
-      data: { progress: 10, progressMessage: "正在获取洞察数据..." },
-    });
+    // 解析topicIndexes以判断模式
+    const topicIndexesData = JSON.parse(task.topicIndexes);
+    const isDirectMode = topicIndexesData.mode === 'direct';
 
-    const insight = await prisma.insight.findUnique({
-      where: { id: task.insightId },
-    });
+    let keyword: string;
+    let selectedInsights: string[];
+    let fetchRecord: any = null;
+    let targetArticle: any = null;
 
-    if (!insight) {
-      throw new Error("洞察报告不存在");
+    if (isDirectMode) {
+      // direct模式：从ArticleFetch加载单篇文章
+      console.log("🎯 direct模式：基于单篇文章创作");
+
+      await prisma.creationTask.update({
+        where: { id: taskId },
+        data: { progress: 10, progressMessage: "正在加载原文数据..." },
+      });
+
+      fetchRecord = await prisma.articleFetch.findUnique({
+        where: { id: topicIndexesData.fetchId }
+      });
+
+      if (!fetchRecord) {
+        throw new Error("原文记录不存在");
+      }
+
+      const articles = JSON.parse(fetchRecord.articles);
+      targetArticle = articles[topicIndexesData.articleIndex];
+
+      if (!targetArticle) {
+        throw new Error("目标文章不存在");
+      }
+
+      keyword = fetchRecord.keyword;
+      selectedInsights = [
+        `基于爆款文章《${targetArticle.title}》进行内容改写`,
+        `原文数据：${targetArticle.views || 0}阅读，${targetArticle.likes || 0}点赞`,
+        `包含${targetArticle.images?.length || 0}张高质量配图`
+      ];
+
+      console.log(`  ✓ 原文标题: ${targetArticle.title}`);
+      console.log(`  ✓ 原文配图: ${targetArticle.images?.length || 0}张`);
+    } else {
+      // insight模式：原有逻辑
+      console.log("📊 insight模式：基于洞察创作");
+
+      await prisma.creationTask.update({
+        where: { id: taskId },
+        data: { progress: 10, progressMessage: "正在获取洞察数据..." },
+      });
+
+      if (!task.insightId) {
+        throw new Error("insightId 不能为空");
+      }
+
+      const insight = await prisma.insight.findUnique({
+        where: { id: task.insightId },
+      });
+
+      if (!insight) {
+        throw new Error("洞察报告不存在");
+      }
+
+      const allInsights = JSON.parse(insight.insights);
+      const topicIndexes = topicIndexesData as number[];
+      selectedInsights = topicIndexes.map((i: number) => allInsights[i]);
+      keyword = insight.keyword;
     }
-
-    const allInsights = JSON.parse(insight.insights);
-    const topicIndexes = JSON.parse(task.topicIndexes);
-    const selectedInsights = topicIndexes.map((i: number) => allInsights[i]);
 
     // 2. AI生成文章
     await prisma.creationTask.update({
@@ -333,7 +424,7 @@ async function processCreationTask(taskId: string) {
     const finalStyle = task.platform === "xiaohongshu" ? "xiaohongshu" : (task.platform === "wechat" ? "wechat" : task.style);
     const { title, content } = await generateArticle(
       selectedInsights,
-      insight.keyword,
+      keyword,
       task.length,
       finalStyle
     );
@@ -351,27 +442,75 @@ async function processCreationTask(taskId: string) {
     let images: string[] = [];
     let finalContent = content;
 
-    // 4. 生成图片
+    // 4. 生成图片 (支持文生图和图生图两种模式)
     if (siliconFlowClient.isConfigured()) {
       try {
-        // 4.1 生成图片提示词
-        await prisma.creationTask.update({
-          where: { id: taskId },
-          data: { progress: 60, progressMessage: "正在生成图片提示词..." },
+        // 获取用户的提示词设置
+        const promptSettings = await prisma.promptSettings.findUnique({
+          where: { userId: 'default' }
         });
 
-        console.log("💡 步骤3: 生成图片提示词...");
-        const imagePromptsList = await generateImagePrompts(title, content, imageCount, task.platform);
+        // 判断是否使用图生图模式
+        const useImageToImage = isDirectMode && targetArticle?.images?.length > 0;
 
-        // 4.2 并行生成图片
-        await prisma.creationTask.update({
-          where: { id: taskId },
-          data: { progress: 70, progressMessage: `正在生成 ${imageCount} 张配图...` },
-        });
+        if (useImageToImage) {
+          // 图生图模式
+          console.log("🎨 使用图生图模式...");
 
-        console.log("🎨 步骤4: 调用SiliconFlow API生成图片...");
-        const imageSize = task.platform === "xiaohongshu" ? "1024x1024" : "1024x576";
-        images = await siliconFlowClient.generateMultipleImages(imagePromptsList, { imageSize });
+          await prisma.creationTask.update({
+            where: { id: taskId },
+            data: { progress: 60, progressMessage: "正在准备原图进行重绘..." },
+          });
+
+          // direct模式：直接使用targetArticle的配图
+          const originalImages = targetArticle.images.slice(0, imageCount);
+
+          console.log(`📸 找到${originalImages.length}张原图`);
+
+          if (originalImages.length > 0) {
+            await prisma.creationTask.update({
+              where: { id: taskId },
+              data: { progress: 70, progressMessage: `正在图生图 ${originalImages.length} 张配图...` },
+            });
+
+            const imagePrompt = promptSettings?.imagePrompt || "扁平插画风格，配色温暖明亮，现代简约，专业质感";
+            const strength = promptSettings?.strength || 0.5;
+
+            images = await siliconFlowClient.batchImageToImage(
+              originalImages.map((url: string) => ({
+                url,
+                prompt: `${imagePrompt}, high quality, professional`
+              })),
+              { strength }
+            );
+
+            console.log(`✅ 图生图完成: ${images.length}张`);
+          } else {
+            console.warn("⚠️ 未找到原图，降级为文生图模式");
+            // 降级到文生图
+            const imagePromptsList = await generateImagePrompts(title, content, imageCount, task.platform);
+            const imageSize = task.platform === "xiaohongshu" ? "1024x1024" : "1024x576";
+            images = await siliconFlowClient.generateMultipleImages(imagePromptsList, { imageSize });
+          }
+        } else {
+          // 文生图模式（原有逻辑）
+          console.log("💡 使用文生图模式...");
+
+          await prisma.creationTask.update({
+            where: { id: taskId },
+            data: { progress: 60, progressMessage: "正在生成图片提示词..." },
+          });
+
+          const imagePromptsList = await generateImagePrompts(title, content, imageCount, task.platform);
+
+          await prisma.creationTask.update({
+            where: { id: taskId },
+            data: { progress: 70, progressMessage: `正在生成 ${imageCount} 张配图...` },
+          });
+
+          const imageSize = task.platform === "xiaohongshu" ? "1024x1024" : "1024x576";
+          images = await siliconFlowClient.generateMultipleImages(imagePromptsList, { imageSize });
+        }
 
         // 4.3 智能插入图片
         if (images.length > 0) {
@@ -407,20 +546,23 @@ async function processCreationTask(taskId: string) {
         content: finalContent,
         status: "DRAFT",
         wordCount: content.replace(/<[^>]*>/g, "").length,
-        tags: JSON.stringify([insight.keyword]),
+        tags: JSON.stringify([keyword]),
         images: JSON.stringify(images),
-        insightId: insight.id,
+        insightId: isDirectMode ? null : task.insightId, // direct模式不关联insight
       },
     });
 
-    // 6. 更新任务为完成
-    await prisma.creationTask.update({
+    console.log(`✅ 文章已保存: ID=${article.id}`);
+
+    // 6. 更新任务为完成 - 🔥 使用事务确保原子性
+    const updatedTask = await prisma.creationTask.update({
       where: { id: taskId },
       data: {
         status: "COMPLETED",
         progress: 100,
         progressMessage: "内容创作完成!",
         articleId: article.id,
+        updatedAt: new Date(), // 🔥 强制更新时间戳
       },
     });
 
@@ -429,6 +571,8 @@ async function processCreationTask(taskId: string) {
     console.log(`  - 文章ID: ${article.id}`);
     console.log(`  - 字数: ${article.wordCount}`);
     console.log(`  - 图片数: ${images.length}`);
+    console.log(`  - 最终状态: ${updatedTask.status}`);
+    console.log(`========== 任务处理完成 ==========\n`);
   } catch (error: any) {
     console.error(`❌ 任务${taskId}处理失败:`, error);
 
@@ -439,6 +583,7 @@ async function processCreationTask(taskId: string) {
         status: "FAILED",
         error: error.message || "创作失败",
         progressMessage: "创作失败: " + (error.message || "未知错误"),
+        updatedAt: new Date(), // 🔥 强制更新时间戳
       },
     });
   }

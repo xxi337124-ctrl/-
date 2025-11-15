@@ -1,11 +1,46 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
+import { FiTrendingUp, FiFileText, FiSend, FiClock, FiBarChart2, FiPieChart, FiActivity } from "react-icons/fi";
+import { PageContainer, GridLayout, Section } from "@/components/common/Layout";
+import { StatCard } from "@/components/common/Card";
+import { colors, animations } from "@/lib/design";
+
+interface DashboardStats {
+  todayAnalysis: number;
+  todayAnalysisTrend: string;
+  articlesCreated: number;
+  articlesCreatedTrend: string;
+  published: number;
+  publishedTrend: string;
+  pending: number;
+  pendingTrend: string;
+}
+
+interface WeekDataItem {
+  day: string;
+  analysis: number;
+  creation: number;
+  publish: number;
+}
+
+interface PlatformStats {
+  xiaohongshu: number;
+  wechat: number;
+}
+
+interface LatestArticle {
+  id: string;
+  title: string;
+  timeAgo: string;
+  wordCount: number;
+}
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<DashboardStats>({
     todayAnalysis: 0,
     todayAnalysisTrend: "+0%",
     articlesCreated: 0,
@@ -16,7 +51,7 @@ export default function DashboardPage() {
     pendingTrend: "+0%",
   });
 
-  const [weekData, setWeekData] = useState([
+  const [weekData, setWeekData] = useState<WeekDataItem[]>([
     { day: "周一", analysis: 0, creation: 0, publish: 0 },
     { day: "周二", analysis: 0, creation: 0, publish: 0 },
     { day: "周三", analysis: 0, creation: 0, publish: 0 },
@@ -26,12 +61,12 @@ export default function DashboardPage() {
     { day: "周日", analysis: 0, creation: 0, publish: 0 },
   ]);
 
-  const [platformStats, setPlatformStats] = useState({
+  const [platformStats, setPlatformStats] = useState<PlatformStats>({
     xiaohongshu: 50,
     wechat: 50,
   });
 
-  const [latestArticles, setLatestArticles] = useState<any[]>([]);
+  const [latestArticles, setLatestArticles] = useState<LatestArticle[]>([]);
   const [hotTopics, setHotTopics] = useState<string[]>(["AI工具", "效率提升", "副业赚钱", "营销技巧", "个人成长"]);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,135 +120,103 @@ export default function DashboardPage() {
     };
   }, []);
 
+  // 解析趋势数据
+  const parseTrend = (trendString: string) => {
+    const value = parseFloat(trendString.replace(/[^0-9.-]/g, ""));
+    const isPositive = trendString.includes("+");
+    return { value: Math.abs(value), isPositive };
+  };
+
   return (
-    <div className="h-full bg-gradient-to-br from-gray-50 via-white to-indigo-50">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        {/* 头部 */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-1">仪表盘</h1>
-          <p className="text-sm text-gray-500">欢迎回来! 这是您的内容工厂数据概览</p>
-        </div>
-
-        {/* 错误提示 */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <span className="text-red-700 text-sm font-medium">加载失败: {error}</span>
-            </div>
+    <PageContainer
+      title="数据概览中心"
+      description="实时监控您的内容工厂数据表现"
+      actions={
+        <Link href="/content-creation">
+          <button className={`px-6 py-3 bg-gradient-to-r ${colors.gradients.purple} text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2`}>
+            <FiSend className="w-5 h-5" />
+            新建创作
+          </button>
+        </Link>
+      }
+    >
+      {/* 错误提示 */}
+      {error && (
+        <motion.div
+          {...animations.fadeIn}
+          className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl"
+        >
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <span className="text-red-700 text-sm font-medium">加载失败: {error}</span>
           </div>
-        )}
+        </motion.div>
+      )}
 
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-          {/* 今日分析 */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-white">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">今日分析</p>
-                  <h3 className="text-4xl font-bold text-gray-900 mb-2">{stats.todayAnalysis}</h3>
-                  <div className="flex items-center gap-1 text-sm">
-                    <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-green-600 font-medium">{stats.todayAnalysisTrend}</span>
-                    <span className="text-gray-400">vs 昨日</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
+      {/* 统计卡片 */}
+      <Section>
+        <GridLayout columns={4} gap={6}>
+          <StatCard
+            title="今日分析"
+            value={stats.todayAnalysis}
+            icon={<FiBarChart2 />}
+            color="blue"
+            trend={parseTrend(stats.todayAnalysisTrend)}
+            description="vs 昨日"
+          />
+          <StatCard
+            title="生成文章"
+            value={stats.articlesCreated}
+            icon={<FiFileText />}
+            color="green"
+            trend={parseTrend(stats.articlesCreatedTrend)}
+            description="vs 昨日"
+          />
+          <StatCard
+            title="已发布"
+            value={stats.published}
+            icon={<FiSend />}
+            color="purple"
+            trend={parseTrend(stats.publishedTrend)}
+            description="vs 昨日"
+          />
+          <StatCard
+            title="待审核"
+            value={stats.pending}
+            icon={<FiClock />}
+            color="orange"
+            trend={parseTrend(stats.pendingTrend)}
+            description="vs 昨日"
+          />
+        </GridLayout>
+      </Section>
+
+      {/* 图表区域 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* 内容生产趋势 */}
+        <motion.div
+          {...animations.fadeIn}
+          className="lg:col-span-2 bg-white rounded-xl p-6 shadow-lg border border-gray-200"
+        >
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 bg-gradient-to-br ${colors.gradients.purple} rounded-lg flex items-center justify-center`}>
+                <FiActivity className="w-5 h-5 text-white" />
               </div>
-            </CardContent>
-          </Card>
+              <h3 className="text-xl font-bold text-gray-900">内容生产趋势</h3>
+            </div>
+            <p className="text-sm text-gray-500">过去7天的数据变化</p>
+          </div>
 
-          {/* 生成文章 */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-white">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">生成文章</p>
-                  <h3 className="text-4xl font-bold text-gray-900 mb-2">{stats.articlesCreated}</h3>
-                  <div className="flex items-center gap-1 text-sm">
-                    <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-green-600 font-medium">{stats.articlesCreatedTrend}</span>
-                    <span className="text-gray-400">vs 昨日</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                  </svg>
-                </div>
+          <div className="h-80 relative">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="animate-spin w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full"></div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* 已发布 */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-white">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">已发布</p>
-                  <h3 className="text-4xl font-bold text-gray-900 mb-2">{stats.published}</h3>
-                  <div className="flex items-center gap-1 text-sm">
-                    <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-green-600 font-medium">{stats.publishedTrend}</span>
-                    <span className="text-gray-400">vs 昨日</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 待审核 */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-white">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">待审核</p>
-                  <h3 className="text-4xl font-bold text-gray-900 mb-2">{stats.pending}</h3>
-                  <div className="flex items-center gap-1 text-sm">
-                    <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-red-600 font-medium">{stats.pendingTrend}</span>
-                    <span className="text-gray-400">vs 昨日</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 图表区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-          {/* 内容生产趋势 */}
-          <Card className="lg:col-span-2 border-0 shadow-lg">
-            <CardHeader className="border-b">
-              <CardTitle className="text-xl">内容生产趋势</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="h-80 relative">
+            ) : (
+              <>
                 {/* 简化的SVG折线图 */}
                 <svg className="w-full h-full" viewBox="0 0 700 300">
                   {/* 网格线 */}
@@ -270,19 +273,35 @@ export default function DashboardPage() {
                     <span className="text-sm text-gray-600">发布</span>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </>
+            )}
+          </div>
+        </motion.div>
 
-          {/* 发布平台分布 */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="border-b">
-              <CardTitle className="text-xl">发布平台分布</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-center h-80">
+        {/* 发布平台分布 */}
+        <motion.div
+          {...animations.fadeIn}
+          className="bg-white rounded-xl p-6 shadow-lg border border-gray-200"
+        >
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 bg-gradient-to-br ${colors.gradients.pink} rounded-lg flex items-center justify-center`}>
+                <FiPieChart className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">平台分布</h3>
+            </div>
+            <p className="text-sm text-gray-500">内容发布占比</p>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full"></div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-center h-64">
                 {/* 环形图 */}
-                <div className="relative w-64 h-64">
+                <div className="relative w-48 h-48">
                   <svg className="w-full h-full" viewBox="0 0 200 200">
                     <circle
                       cx="100"
@@ -308,91 +327,140 @@ export default function DashboardPage() {
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
-                      <div className="text-4xl font-bold text-gray-900">100%</div>
-                      <div className="text-sm text-gray-500">覆盖率</div>
+                      <div className="text-3xl font-bold text-gray-900">100%</div>
+                      <div className="text-xs text-gray-500">覆盖率</div>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* 平台列表 */}
-              <div className="space-y-4 mt-6">
-                <div className="flex items-center justify-between">
+              <div className="space-y-3 mt-4">
+                <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span className="text-gray-700">小红书</span>
+                    <div className="w-8 h-8 bg-gradient-to-br from-red-400 to-pink-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-sm">📕</span>
+                    </div>
+                    <span className="text-gray-700 font-medium">小红书</span>
                   </div>
                   <span className="font-bold text-gray-900">{platformStats.xiaohongshu}%</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                    <span className="text-gray-700">公众号</span>
+                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-sm">💬</span>
+                    </div>
+                    <span className="text-gray-700 font-medium">公众号</span>
                   </div>
                   <span className="font-bold text-gray-900">{platformStats.wechat}%</span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </>
+          )}
+        </motion.div>
+      </div>
 
-        {/* 最新文章和热门话题 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* 最新文章 */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="border-b">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">最新文章</CardTitle>
-                <a href="/publish-management" className="text-sm text-indigo-500 hover:text-indigo-600 flex items-center gap-1">
-                  查看全部
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </a>
+      {/* 最新文章和热门话题 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 最新文章 */}
+        <motion.div
+          {...animations.fadeIn}
+          className="bg-white rounded-xl p-6 shadow-lg border border-gray-200"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 bg-gradient-to-br ${colors.gradients.blue} rounded-lg flex items-center justify-center`}>
+                <FiFileText className="w-5 h-5 text-white" />
               </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {loading ? (
-                  <div className="text-center text-gray-500 py-8">加载中...</div>
-                ) : latestArticles.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">暂无文章</div>
-                ) : (
-                  latestArticles.map((article) => (
-                    <div key={article.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <svg className="w-6 h-6 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                        </svg>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">最新文章</h3>
+                <p className="text-sm text-gray-500">最近创作的内容</p>
+              </div>
+            </div>
+            <Link href="/publish-management">
+              <button className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1 font-medium">
+                查看全部
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {loading ? (
+              <div className="text-center text-gray-500 py-8">
+                <div className="animate-spin w-6 h-6 border-4 border-purple-200 border-t-purple-600 rounded-full mx-auto"></div>
+              </div>
+            ) : latestArticles.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-3xl">📝</span>
+                </div>
+                <p className="text-gray-500 text-sm">暂无文章</p>
+              </div>
+            ) : (
+              <AnimatePresence>
+                {latestArticles.map((article, index) => (
+                  <motion.div
+                    key={article.id}
+                    {...animations.listItemEntrance(index)}
+                  >
+                    <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-purple-50 transition-all duration-300 cursor-pointer group">
+                      <div className={`w-12 h-12 bg-gradient-to-br ${colors.gradients.purple} rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform`}>
+                        <FiFileText className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-gray-900 truncate">{article.title}</h4>
-                        <p className="text-xs text-gray-500 mt-1">{article.timeAgo} · {article.wordCount}字</p>
+                        <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-purple-600 transition-colors">
+                          {article.title}
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {article.timeAgo} · {article.wordCount}字
+                        </p>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
+        </motion.div>
 
-          {/* 热门话题 */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="border-b">
-              <CardTitle className="text-xl">热门话题</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                {loading ? (
-                  <div className="text-center text-gray-500 py-8">加载中...</div>
-                ) : (
-                  hotTopics.map((topic, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+        {/* 热门话题 */}
+        <motion.div
+          {...animations.fadeIn}
+          className="bg-white rounded-xl p-6 shadow-lg border border-gray-200"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className={`w-10 h-10 bg-gradient-to-br ${colors.gradients.orange} rounded-lg flex items-center justify-center`}>
+              <FiTrendingUp className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">热门话题</h3>
+              <p className="text-sm text-gray-500">当前热度最高</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {loading ? (
+              <div className="text-center text-gray-500 py-8">
+                <div className="animate-spin w-6 h-6 border-4 border-purple-200 border-t-purple-600 rounded-full mx-auto"></div>
+              </div>
+            ) : (
+              <AnimatePresence>
+                {hotTopics.map((topic, i) => (
+                  <motion.div
+                    key={i}
+                    {...animations.listItemEntrance(i)}
+                  >
+                    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-orange-50 transition-all duration-300 cursor-pointer group">
                       <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-500 text-white rounded-md flex items-center justify-center text-sm font-bold">
+                        <span className={`w-8 h-8 bg-gradient-to-br ${colors.gradients.orange} text-white rounded-lg flex items-center justify-center text-sm font-bold group-hover:scale-110 transition-transform`}>
                           {i + 1}
                         </span>
-                        <span className="text-gray-700">{topic}</span>
+                        <span className="text-gray-700 font-medium group-hover:text-orange-600 transition-colors">
+                          {topic}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 text-orange-500">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -401,13 +469,13 @@ export default function DashboardPage() {
                         <span className="text-sm font-medium">热</span>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

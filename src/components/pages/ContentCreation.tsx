@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/utils";
 import dynamic from "next/dynamic";
+import EnhancedImage from "@/components/EnhancedImage";
 
 // 动态导入富文本编辑器（避免 SSR 问题）
 const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
@@ -21,10 +22,25 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 export default function ContentCreationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // 模式判断：insight模式 或 direct模式
+  const mode = searchParams.get("mode"); // 'direct' 或 null(默认insight模式)
+  const fetchId = searchParams.get("fetchId");
+  const articleIndex = searchParams.get("articleIndex");
+
   const [step, setStep] = useState(1); // 1=选洞察, 2=选方向, 3=参数, 4=生成, 5=预览编辑
   const [insights, setInsights] = useState<any[]>([]);
   const [selectedInsight, setSelectedInsight] = useState<string | null>(null);
   const [selectedTopics, setSelectedTopics] = useState<number[]>([]);
+
+  // direct模式：单篇文章数据
+  const [selectedArticle, setSelectedArticle] = useState<any>(null);
+  const [loadingArticle, setLoadingArticle] = useState(false);
+
+  // 原文预览展开状态
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+
   const [creating, setCreating] = useState(false);
   const [progress, setProgress] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
@@ -41,11 +57,117 @@ export default function ContentCreationPage() {
   const [generatedContent, setGeneratedContent] = useState("");
   const [editedTitle, setEditedTitle] = useState("");
   const [editedContent, setEditedContent] = useState("");
+  const [generatedImages, setGeneratedImages] = useState<string[]>([]); // 存储生成的图片URL
   const [previewMode, setPreviewMode] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // 洞察卡片展开状态 - 使用对象管理多个卡片的状态
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+
+  // 页面加载时检查是否有未完成的任务
+  useEffect(() => {
+    const savedTaskId = localStorage.getItem('contentCreation_taskId');
+    const savedTaskPlatform = localStorage.getItem('contentCreation_platform');
+
+    if (savedTaskId) {
+      console.log('🔄 检测到未完成的创作任务:', savedTaskId);
+      // 检查任务状态
+      fetch(`/api/content-creation/${savedTaskId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data.task) {
+            const task = data.data.task;
+
+            if (task.status === 'PROCESSING') {
+              // 任务还在进行中,恢复状态
+              setCurrentTaskId(savedTaskId);
+              setCreating(true);
+              setStep(4);
+              if (savedTaskPlatform) {
+                setPlatform(savedTaskPlatform as 'wechat' | 'xiaohongshu');
+              }
+              console.log('✅ 已恢复创作任务轮询');
+            } else if (task.status === 'COMPLETED' && data.data.article) {
+              // 任务已完成,直接显示结果
+              const article = data.data.article;
+              setGeneratedTitle(article.title);
+              setGeneratedContent(article.content);
+              setEditedTitle(article.title);
+              setEditedContent(article.content);
+
+              if (article.images) {
+                try {
+                  const images = typeof article.images === 'string'
+                    ? JSON.parse(article.images)
+                    : article.images;
+                  const parsedImages = Array.isArray(images) ? images : [];
+                  console.log('📸 直接模式-成功解析图片:', parsedImages.length, '张');
+                  setGeneratedImages(parsedImages);
+                } catch (e) {
+                  console.error('❌ 直接模式-解析图片失败:', e);
+                  setGeneratedImages([]);
+                }
+              } else {
+                console.warn('⚠️ 直接模式-article.images 为空');
+                setGeneratedImages([]);
+              }
+
+              if (savedTaskPlatform) {
+                setPlatform(savedTaskPlatform as 'wechat' | 'xiaohongshu');
+              }
+
+              setStep(5);
+              localStorage.removeItem('contentCreation_taskId');
+              localStorage.removeItem('contentCreation_platform');
+              console.log('✅ 创作任务已完成,显示结果');
+            } else {
+              // 任务失败或其他状态,清除
+              localStorage.removeItem('contentCreation_taskId');
+              localStorage.removeItem('contentCreation_platform');
+            }
+          } else {
+            localStorage.removeItem('contentCreation_taskId');
+            localStorage.removeItem('contentCreation_platform');
+          }
+        })
+        .catch(error => {
+          console.error('恢复任务失败:', error);
+          localStorage.removeItem('contentCreation_taskId');
+          localStorage.removeItem('contentCreation_platform');
+        });
+    }
+  }, []);
+
+  // direct模式：加载单篇文章数据
+  useEffect(() => {
+    if (mode === 'direct' && fetchId && articleIndex !== null) {
+      loadArticleForDirect();
+    }
+  }, [mode, fetchId, articleIndex]);
+
+  const loadArticleForDirect = async () => {
+    if (!fetchId || articleIndex === null) return;
+
+    setLoadingArticle(true);
+    try {
+      const response = await fetch(`/api/article-fetch/${fetchId}`);
+      const data = await response.json();
+
+      if (data.success && data.data.articles) {
+        const article = data.data.articles[parseInt(articleIndex)];
+        setSelectedArticle(article);
+        setStep(3); // 直接跳到参数配置步骤
+        console.log('✅ 加载文章成功:', article.title);
+      } else {
+        alert('加载文章失败: ' + (data.error || '未知错误'));
+      }
+    } catch (error) {
+      console.error('加载文章失败:', error);
+      alert('加载文章失败，请重试');
+    } finally {
+      setLoadingArticle(false);
+    }
+  };
 
   useEffect(() => {
     loadInsights();
@@ -64,13 +186,35 @@ export default function ContentCreationPage() {
   useEffect(() => {
     if (!currentTaskId) return;
 
-    const pollInterval = setInterval(async () => {
+    let pollInterval: NodeJS.Timeout;
+    let pollCount = 0;
+    const MAX_POLLS = 300; // 最多轮询5分钟 (300次 * 1秒)
+
+    const pollTaskStatus = async () => {
       try {
-        const response = await fetch(`/api/content-creation/${currentTaskId}`);
+        pollCount++;
+
+        // 🔥 添加时间戳防止缓存
+        const timestamp = Date.now();
+        const response = await fetch(`/api/content-creation/${currentTaskId}?_t=${timestamp}`, {
+          // 🔥 强制禁用缓存
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
+        });
+
         const data = await response.json();
 
         if (data.success && data.data.task) {
           const task = data.data.task;
+
+          console.log(`🔄 [${pollCount}] 轮询状态:`, {
+            status: task.status,
+            progress: task.progress,
+            message: task.progressMessage
+          });
 
           setProgress(task.progressMessage || "处理中...");
           setProgressPercent(task.progress || 0);
@@ -81,11 +225,40 @@ export default function ContentCreationPage() {
             setCreating(false);
             setCurrentTaskId(null);
 
+            // 清除localStorage中的任务ID
+            localStorage.removeItem('contentCreation_taskId');
+            localStorage.removeItem('contentCreation_platform');
+
             const article = data.data.article;
+            console.log('✅ 任务完成,文章数据:', {
+              title: article.title,
+              contentLength: article.content?.length,
+              imagesRaw: article.images
+            });
+
             setGeneratedTitle(article.title);
             setGeneratedContent(article.content);
             setEditedTitle(article.title);
             setEditedContent(article.content);
+
+            // 解析图片URL数组
+            if (article.images) {
+              try {
+                const images = typeof article.images === 'string'
+                  ? JSON.parse(article.images)
+                  : article.images;
+                const parsedImages = Array.isArray(images) ? images : [];
+                console.log('📸 成功解析图片数组:', parsedImages.length, '张');
+                console.log('📸 图片URLs:', parsedImages);
+                setGeneratedImages(parsedImages);
+              } catch (e) {
+                console.error('❌ 解析图片数组失败:', e);
+                setGeneratedImages([]);
+              }
+            } else {
+              console.warn('⚠️ article.images 为空');
+              setGeneratedImages([]);
+            }
 
             setTimeout(() => {
               setStep(5); // 进入预览编辑步骤
@@ -97,16 +270,40 @@ export default function ContentCreationPage() {
             clearInterval(pollInterval);
             setCreating(false);
             setCurrentTaskId(null);
+
+            // 清除localStorage中的任务ID
+            localStorage.removeItem('contentCreation_taskId');
+            localStorage.removeItem('contentCreation_platform');
+
             alert(`创作失败: ${task.error || "未知错误"}`);
             setStep(3); // 回到参数设置
           }
         }
+
+        // 防止无限轮询
+        if (pollCount >= MAX_POLLS) {
+          clearInterval(pollInterval);
+          setCreating(false);
+          setCurrentTaskId(null);
+          localStorage.removeItem('contentCreation_taskId');
+          localStorage.removeItem('contentCreation_platform');
+          alert('创作超时,请重试');
+          setStep(3);
+        }
       } catch (error) {
         console.error("轮询任务状态失败:", error);
       }
-    }, 2000); // 每2秒轮询一次
+    };
 
-    return () => clearInterval(pollInterval);
+    // 🔥 立即执行一次,然后每1秒轮询
+    pollTaskStatus();
+    pollInterval = setInterval(pollTaskStatus, 1000); // 改为1秒轮询,更实时
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
   }, [currentTaskId]);
 
   const loadInsights = async () => {
@@ -129,24 +326,50 @@ export default function ContentCreationPage() {
   };
 
   const handleCreate = async () => {
-    if (!selectedInsight || selectedTopics.length === 0) return;
+    // direct模式验证
+    if (mode === 'direct') {
+      if (!fetchId || !selectedArticle) {
+        alert('数据错误：缺少文章信息');
+        return;
+      }
+    } else {
+      // insight模式验证
+      if (!selectedInsight || selectedTopics.length === 0) {
+        alert('请选择洞察和主题');
+        return;
+      }
+    }
 
     setCreating(true);
     setProgress("正在初始化AI创作引擎...");
     setProgressPercent(0);
 
     try {
+      const requestBody = mode === 'direct'
+        ? {
+            // direct模式参数
+            mode: 'direct',
+            fetchId,
+            articleIndex: parseInt(articleIndex || '0'),
+            length,
+            style: platform === "xiaohongshu" ? "casual" : style,
+            platform,
+            imageStrategy,
+          }
+        : {
+            // insight模式参数（原有逻辑）
+            insightId: selectedInsight,
+            topicIndexes: selectedTopics,
+            length,
+            style: platform === "xiaohongshu" ? "casual" : style,
+            platform,
+            imageStrategy,
+          };
+
       const response = await fetch("/api/content-creation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          insightId: selectedInsight,
-          topicIndexes: selectedTopics,
-          length,
-          style: platform === "xiaohongshu" ? "casual" : style,
-          platform,
-          imageStrategy,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -156,6 +379,11 @@ export default function ContentCreationPage() {
         setCurrentTaskId(data.data.taskId);
         setProgress("任务已创建,开始处理...");
         setProgressPercent(5);
+
+        // 保存到localStorage,以便切换页面后恢复
+        localStorage.setItem('contentCreation_taskId', data.data.taskId);
+        localStorage.setItem('contentCreation_platform', platform);
+        console.log('💾 已保存创作任务ID到localStorage:', data.data.taskId);
       } else {
         alert(`创作失败: ${data.error || "未知错误"}`);
         setCreating(false);
@@ -595,6 +823,116 @@ export default function ContentCreationPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-6">
+              {/* direct模式：原文预览 */}
+              {mode === 'direct' && selectedArticle && (
+                <Card className="mb-6 border-2 border-blue-200 bg-blue-50/30">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                          </svg>
+                          <CardTitle className="text-lg text-blue-900">原文预览</CardTitle>
+                        </div>
+                        <p className="text-sm text-gray-700 font-medium">{selectedArticle.title}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsPreviewExpanded(!isPreviewExpanded)}
+                          className="border-blue-300 hover:bg-blue-100"
+                        >
+                          {isPreviewExpanded ? '收起预览' : '展开查看'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(selectedArticle.url, '_blank')}
+                          className="border-blue-300 hover:bg-blue-100"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          去小红书
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* 配图预览 */}
+                    {selectedArticle.images && selectedArticle.images.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-600 mb-2 font-semibold">原文配图 ({selectedArticle.images.length}张)：</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {(isPreviewExpanded ? selectedArticle.images : selectedArticle.images.slice(0, 6)).map((img: string, i: number) => (
+                            <div
+                              key={i}
+                              className="relative group cursor-pointer"
+                              onClick={() => setSelectedImageIndex(i)}
+                            >
+                              <img
+                                src={`${img}${img.includes("?") ? "&" : "?"}t=${Date.now()}`}
+                                className="w-20 h-20 object-cover rounded border-2 border-blue-200 transition-all group-hover:border-blue-400 group-hover:scale-105"
+                                alt={`原图${i+1}`}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded transition-all flex items-center justify-center">
+                                <svg className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            </div>
+                          ))}
+                          {!isPreviewExpanded && selectedArticle.images.length > 6 && (
+                            <div
+                              className="w-20 h-20 rounded border-2 border-blue-200 bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-bold cursor-pointer hover:bg-blue-200 transition-all"
+                              onClick={() => setIsPreviewExpanded(true)}
+                            >
+                              +{selectedArticle.images.length - 6}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 文章统计 */}
+                    <div className="flex gap-4 text-sm text-gray-600 p-3 bg-white/80 rounded-lg border border-blue-200">
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                          <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                        </svg>
+                        {selectedArticle.views || 0} 阅读
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                        </svg>
+                        {selectedArticle.likes || 0} 点赞
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                        </svg>
+                        {selectedArticle.images?.length || 0} 张配图
+                      </span>
+                    </div>
+
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-xs text-amber-800 flex items-start gap-2">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        将基于此文章的配图进行<strong>图生图重绘</strong>，生成符合你设置风格的新配图
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
@@ -629,6 +967,7 @@ export default function ContentCreationPage() {
                       onChange={(e) => setLength(e.target.value)}
                       className="w-full h-12 px-4 rounded-xl border-2 border-gray-200 bg-white hover:border-emerald-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all text-base font-medium"
                     >
+                      <option value="mini">超短篇 (500-800字)</option>
                       <option value="short">短篇 (1000-1500字)</option>
                       <option value="medium">中等 (2000-3000字)</option>
                       <option value="long">长篇 (3000-5000字)</option>
@@ -801,20 +1140,213 @@ export default function ContentCreationPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="max-w-3xl mx-auto">
-                    <h1 className="text-4xl font-bold mb-6">{editedTitle || "无标题"}</h1>
-                    <div className="h-px bg-gray-200 mb-8" />
-                    <div
-                      className="prose prose-lg max-w-none"
-                      dangerouslySetInnerHTML={{ __html: editedContent || "<p>暂无内容</p>" }}
-                    />
-                  </div>
+                  <>
+                    {platform === "xiaohongshu" ? (
+                      // 小红书格式: 文字和图片分开显示
+                      <div className="max-w-3xl mx-auto space-y-8">
+                        {/* 标题 */}
+                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-lg">📕</span>
+                            <h3 className="text-sm font-bold text-red-900">小红书标题</h3>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(editedTitle);
+                                alert('标题已复制到剪贴板');
+                              }}
+                              className="ml-auto"
+                            >
+                              📋 复制标题
+                            </Button>
+                          </div>
+                          <h1 className="text-2xl font-bold text-gray-900">{editedTitle || "无标题"}</h1>
+                        </div>
+
+                        {/* 文案 */}
+                        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-lg">📝</span>
+                            <h3 className="text-sm font-bold text-blue-900">正文文案</h3>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const textContent = editedContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+                                navigator.clipboard.writeText(textContent);
+                                alert('文案已复制到剪贴板');
+                              }}
+                              className="ml-auto"
+                            >
+                              📋 复制文案
+                            </Button>
+                          </div>
+                          <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            {editedContent.replace(/<[^>]*>/g, '').trim()}
+                          </div>
+                        </div>
+
+                        {/* 配图 */}
+                        {generatedImages.length > 0 && (
+                          <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-6">
+                            <div className="flex items-center gap-2 mb-4">
+                              <span className="text-lg">🖼️</span>
+                              <h3 className="text-sm font-bold text-purple-900">配图 ({generatedImages.length}张)</h3>
+                              <span className="text-xs text-gray-500 ml-auto">点击图片可放大查看</span>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                              {generatedImages.map((img, index) => (
+                                <div key={index} className="relative group">
+                                  <img
+                                    src={`${img}${img.includes("?") ? "&" : "?"}t=${Date.now()}`}
+                                    alt={`配图${index + 1}`}
+                                    className="w-full aspect-square object-cover rounded-lg border-2 border-purple-300 cursor-pointer hover:scale-105 transition-transform"
+                                    onClick={() => window.open(img, '_blank')}
+                                  />
+                                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-lg transition-all flex items-center justify-center">
+                                    <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-semibold">
+                                      查看大图
+                                    </span>
+                                  </div>
+                                  <div className="mt-2 text-center">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = img;
+                                        link.download = `xiaohongshu_image_${index + 1}.jpg`;
+                                        link.click();
+                                      }}
+                                      className="w-full"
+                                    >
+                                      💾 下载
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                              <p className="text-xs text-amber-800">
+                                💡 使用提示: 下载所有配图后,在小红书APP中选择图文笔记,上传这些配图,然后复制粘贴标题和文案即可发布
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 发布指南 */}
+                        <div className="bg-gradient-to-br from-red-50 to-pink-50 border-2 border-red-200 rounded-xl p-6">
+                          <h3 className="text-sm font-bold text-red-900 mb-3">📱 小红书发布流程</h3>
+                          <ol className="space-y-2 text-sm text-gray-700">
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-red-600 min-w-[20px]">1.</span>
+                              <span>下载所有配图到手机相册</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-red-600 min-w-[20px]">2.</span>
+                              <span>打开小红书APP,点击底部"+"按钮</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-red-600 min-w-[20px]">3.</span>
+                              <span>选择"图文"模式,上传刚才下载的配图</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-red-600 min-w-[20px]">4.</span>
+                              <span>复制标题,粘贴到小红书标题栏</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-red-600 min-w-[20px]">5.</span>
+                              <span>复制正文,粘贴到小红书正文区域</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-red-600 min-w-[20px]">6.</span>
+                              <span>添加话题标签,选择发布位置,点击发布</span>
+                            </li>
+                          </ol>
+                        </div>
+                      </div>
+                    ) : (
+                      // 公众号格式: 传统的富文本显示
+                      <div className="max-w-3xl mx-auto">
+                        <h1 className="text-4xl font-bold mb-6">{editedTitle || "无标题"}</h1>
+                        <div className="h-px bg-gray-200 mb-8" />
+                        <div
+                          className="prose prose-lg max-w-none"
+                          dangerouslySetInnerHTML={{ __html: editedContent || "<p>暂无内容</p>" }}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
           </div>
         )}
       </div>
+
+      {/* 图片查看器模态框 */}
+      {selectedImageIndex !== null && selectedArticle?.images && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setSelectedImageIndex(null)}
+        >
+          <div className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center">
+            {/* 关闭按钮 */}
+            <button
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              onClick={() => setSelectedImageIndex(null)}
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* 上一张按钮 */}
+            {selectedImageIndex > 0 && (
+              <button
+                className="absolute left-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedImageIndex(selectedImageIndex - 1);
+                }}
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+
+            {/* 图片 */}
+            <img
+              src={selectedArticle.images[selectedImageIndex]}
+              alt={`图片 ${selectedImageIndex + 1}`}
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            {/* 下一张按钮 */}
+            {selectedImageIndex < selectedArticle.images.length - 1 && (
+              <button
+                className="absolute right-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedImageIndex(selectedImageIndex + 1);
+                }}
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+
+            {/* 图片计数器 */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/50 rounded-full text-white text-sm">
+              {selectedImageIndex + 1} / {selectedArticle.images.length}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

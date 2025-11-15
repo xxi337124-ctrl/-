@@ -1,0 +1,248 @@
+// 用户写作风格DNA系统数据库模型
+// 这是主schema文件的扩展，用于管理提示词和用户写作风格
+
+// 用户写作风格DNA表
+model WritingStyleDNA {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  name        String   // DNA名称，如"我的自然写作风"
+  description String?  // 描述这个风格的特点
+
+  // 风格特征配置
+  characteristics Json // 存储WritingStyleCharacteristics的JSON
+
+  // 个人经历库
+  personalExperiences PersonalExperience[]
+
+  // 常用表达
+  commonPhrases String[] // 个人常用短语和口头禅
+
+  // 使用统计
+  usageStats Json // 使用统计数据
+
+  // 时间戳
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联
+  promptVersions PromptVersion[]
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("writing_style_dna")
+}
+
+// 个人经历表
+model PersonalExperience {
+  id          String   @id @default(cuid())
+  writingStyleDNAId String
+
+  // 经历基本信息
+  category    ExperienceCategory
+  title       String
+  description String
+
+  // 时空背景
+  timeContext String   // "去年夏天", "上周三下午3点"
+  locationContext String? // "北京三里屯", "公司附近的咖啡店"
+
+  // 情感色彩
+  emotionalTone String // "激动", "困惑", "温暖", "尴尬"等
+
+  // 适用主题标签
+  applicableTopics String[] // 适用于哪些写作主题
+
+  // 感官细节
+  sensoryDetails Json? // 存储感官细节的JSON
+
+  // 获得的感悟
+  lessonLearned String?
+
+  // 关联
+  writingStyleDNA WritingStyleStyleDNA @relation(fields: [writingStyleDNAId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("personal_experiences")
+}
+
+// 经历分类枚举
+enum ExperienceCategory {
+  WORK        // 工作经历
+  LIFE        // 生活经历
+  STUDY       // 学习经历
+  RELATIONSHIP // 人际关系
+  TRAVEL      // 旅行经历
+  FAMILY      // 家庭经历
+  HOBBY       // 兴趣爱好
+  OTHER       // 其他
+}
+
+// 提示词版本管理表
+model PromptVersion {
+  id          String   @id @default(cuid())
+
+  // 基本信息
+  name        String   // 版本名称
+  description String?  // 版本描述
+  version     String   // 版本号，如"v1.2.3"
+
+  // 内容配置
+  platform    Platform
+  style       String   // 风格类型：natural, professional, casual等
+  content     String   // 提示词内容
+
+  // 性能数据
+  performance Json // 性能统计数据
+
+  // 关联信息
+  writingStyleDNAId String? // 关联的写作风格DNA
+  createdBy   String   // 创建者ID
+
+  // 状态
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false) // 是否为系统预设
+
+  // 时间戳
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  writingStyleDNA WritingStyleDNA? @relation(fields: [writingStyleDNAId], references: [id])
+  testResults ABPromptTest[]
+
+  @@map("prompt_versions")
+}
+
+// A/B测试表
+model ABPromptTest {
+  id          String   @id @default(cuid())
+
+  // 测试基本信息
+  name        String
+  description String?
+
+  // 测试版本
+  versionAId  String
+  versionBId  String
+
+  // 测试配置
+  testType    ABTestType
+  sampleSize  Int      @default(100)
+  successMetric ABTestMetric
+
+  // 测试结果
+  results     Json?    // 存储测试结果的JSON
+  status      ABTestStatus @default(DRAFT)
+
+  // 时间配置
+  startDate   DateTime?
+  endDate     DateTime?
+
+  // 关联
+  versionA    PromptVersion @relation("VersionA", fields: [versionAId], references: [id])
+  versionB    PromptVersion @relation("VersionB", fields: [versionBId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ab_prompt_tests")
+}
+
+// A/B测试类型枚举
+enum ABTestType {
+  AI_DETECTION   // AI检测率对比
+  USER_RATING    // 用户评分对比
+  ENGAGEMENT     // 参与度对比
+  CONVERSION     // 转化率对比
+  COMPREHENSIVE  // 综合对比
+}
+
+// A/B测试指标枚举
+enum ABTestMetric {
+  AI_SCORE        // AI检测分数
+  USER_RATING     // 用户评分
+  CLICK_RATE      // 点击率
+  COMPLETION_RATE // 完成率
+  ENGAGEMENT_TIME // 参与时长
+  CONVERSION_RATE // 转化率
+}
+
+// A/B测试状态枚举
+enum ABTestStatus {
+  DRAFT      // 草稿
+  SCHEDULED  // 已安排
+  RUNNING    // 进行中
+  COMPLETED  // 已完成
+  STOPPED    // 已停止
+}
+
+// 用户表扩展（假设已存在，这里添加相关字段）
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+
+  // 新增的写作相关字段
+  writingStyleDNA WritingStyleDNA?
+  promptTests     ABPromptTest[]
+
+  @@map("users")
+}
+
+// AI检测记录表
+model AIDetectionRecord {
+  id          String   @id @default(cuid())
+
+  // 检测内容
+  content     String   // 被检测的内容
+  contentType String   // 文章、提示词等
+  contentId   String?  // 关联的内容ID
+
+  // 检测结果
+  detector    String   // 检测器名称
+  aiScore     Float    // AI检测分数 0-1
+  humanScore  Float    // 人类写作分数 0-1
+  details     Json?    // 详细检测结果
+
+  // 上下文信息
+  platform    String?  // 发布平台
+  promptVersion String? // 使用的提示词版本
+
+  // 关联
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  @@map("ai_detection_records")
+}
+
+// 提示词调试记录表
+model PromptDebugRecord {
+  id          String   @id @default(cuid())
+
+  // 调试信息
+  promptContent String // 调试的提示词内容
+  platform    String
+  style       String
+
+  // 生成结果
+  generatedContent String? // 生成的内容
+  aiDetection Json?     // AI检测结果
+
+  // 用户反馈
+  userRating  Int?      // 用户评分 1-5
+  userFeedback String?  // 用户反馈
+
+  // 性能数据
+  generationTime Int?   // 生成耗时（毫秒）
+  tokenUsage   Int?     // token使用量
+
+  // 关联
+  userId      String
+  promptVersionId String? // 关联的提示词版本
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("prompt_debug_records")
+}

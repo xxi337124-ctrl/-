@@ -10,23 +10,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 文章抓取记录表（不含AI分析）
+model ArticleFetch {
+  id            String    @id @default(cuid())
+  keyword       String
+  searchType    String    @default("keyword") // 搜索类型: keyword | account
+  articles      String    // JSON string: 原始文章列表+配图
+  totalArticles Int
+  createdAt     DateTime  @default(now())
+
+  // 关联的洞察（可选）
+  insights      Insight[]
+
+  @@map("article_fetches")
+}
+
 // 洞察报告表
 model Insight {
-  id                     String    @id @default(cuid())
+  id                     String         @id @default(cuid())
+  fetchId                String?        // 关联到文章抓取记录
+  fetch                  ArticleFetch?  @relation(fields: [fetchId], references: [id], onDelete: SetNull)
   keyword                String
-  searchType             String    @default("keyword") // 搜索类型: keyword | account
+  searchType             String         @default("keyword") // 搜索类型: keyword | account
   totalArticles          Int
-  topLikedArticles       String    // JSON string
-  topInteractiveArticles String    // JSON string
-  wordCloud              String    // JSON string
-  insights               String    // JSON string
-  articleSummaries       String?   // JSON string: ArticleSummary[]
-  structuredInsights     String?   // JSON string: StructuredInsight[]
-  analysisMetadata       String?   // JSON string: analysis metadata
-  createdAt              DateTime  @default(now())
-  viewCount              Int       @default(1)
-  isFavorite             Boolean   @default(false)
-  lastViewedAt           DateTime  @default(now())
+  topLikedArticles       String         // JSON string
+  topInteractiveArticles String         // JSON string
+  wordCloud              String         // JSON string
+  insights               String         // JSON string
+  articleSummaries       String?        // JSON string: ArticleSummary[]
+  structuredInsights     String?        // JSON string: StructuredInsight[]
+  analysisMetadata       String?        // JSON string: analysis metadata
+  createdAt              DateTime       @default(now())
+  viewCount              Int            @default(1)
+  isFavorite             Boolean        @default(false)
+  lastViewedAt           DateTime       @default(now())
   articles               Article[]
 
   @@map("insights")
@@ -80,7 +97,7 @@ enum Platform {
 // 创作任务表
 model CreationTask {
   id          String         @id @default(cuid())
-  insightId   String
+  insightId   String?        // Optional: null for direct mode
   topicIndexes String       // JSON array
   length      String
   style       String
@@ -103,4 +120,45 @@ enum TaskStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// 提示词设置表
+model PromptSettings {
+  id           String   @id @default(cuid())
+  userId       String   @unique @default("default")
+
+  // 通用文字创作提示词(已废弃,保留兼容)
+  textPrompt   String   @default("以专业但易懂的方式撰写，结合实际案例，语言自然流畅")
+
+  // 公众号文字创作提示词
+  wechatTextPrompt String @default("以专业正式的方式撰写，结构清晰，段落分明，适合深度阅读。使用数据和案例支撑观点，语言严谨但不失亲和力。")
+
+  // 小红书文字创作提示词
+  xiaohongshuTextPrompt String @default("以轻松活泼的方式撰写，多用表情符号和网络用语，句子简短有力，适合快速浏览。强调实用性和分享价值，语言贴近年轻群体。")
+
+  // 洞察分析提示词
+  insightPrompt String @default("深入分析文章主题和趋势，提炼核心观点，识别用户痛点和需求。提供3-5个具有实操价值的选题建议，每个建议包含目标受众、内容角度和推荐标题。")
+
+  // 图片生成提示词
+  imagePrompt  String   @default("扁平插画风格，配色温暖明亮，现代简约，专业质感")
+  imageStyle   String   @default("modern-flat")
+  strength     Float    @default(0.5) // 图生图重绘强度 0-1 (已废弃,保留兼容)
+
+  // 图片分析提示词（用于 Gemini 2.5 Pro 分析图片）
+  imageAnalysisPrompt  String  @default("请仔细分析这张图片，并提供详细的描述和适合图片生成的英文提示词。请以 JSON 格式返回：{ \"description\": \"图片描述\", \"suggestedPrompt\": \"英文提示词\", \"keyElements\": [\"元素列表\"], \"style\": \"风格\", \"mood\": \"氛围\" }")
+
+  // 图生图高级参数
+  imageModel           String  @default("gpt-4o-image")
+  imagePositivePrompt  String  @default("(masterpiece:1.2), best quality, ultra-detailed, 8k, professional photography, sharp focus, intricate details, cinematic lighting, vibrant colors, physically-based rendering")
+  imageNegativePrompt  String  @default("(worst quality, low quality, normal quality:1.4), ugly, deformed, blurry, jpeg artifacts, noisy, watermark, text, signature, username, canvas frame, out of frame, cropped, disfigured, mutated hands, extra limbs, extra fingers")
+  denoisingStrength    Float   @default(0.35)  // 重绘强度 0-1
+  cfgScale             Float   @default(7.5)   // 提示词引导强度
+  samplerName          String  @default("DPM++ 2M Karras")
+  steps                Int     @default(25)    // 采样步数
+  seed                 Int     @default(-1)    // 随机种子,-1表示随机
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("prompt_settings")
 }

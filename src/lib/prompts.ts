@@ -782,6 +782,7 @@ export function getStyleGuide(style: string): string {
 // 辅助函数:获取字数要求
 export function getWordCount(length: string): string {
   const wordCounts: Record<string, string> = {
+    mini: "500-800字",
     short: "1000-1500字",
     medium: "2000-3000字",
     long: "3000-5000字",

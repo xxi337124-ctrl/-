@@ -344,6 +344,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      platform = 'wechat',  // 默认为公众号
       searchType = 'keyword',  // 默认为关键词搜索
       query,
       keyword  // 兼容旧版本
@@ -358,25 +359,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`搜索类型: ${searchType}, 搜索内容: ${searchQuery}`);
+    console.log(`平台: ${platform}, 搜索类型: ${searchType}, 搜索内容: ${searchQuery}`);
 
-    // 1. 根据搜索类型获取文章数据
+    // 1. 根据平台和搜索类型获取文章数据
     let articles: ArticleData[];
 
-    if (searchType === 'account') {
-      console.log(`按公众号名称获取文章: ${searchQuery}`);
-      articles = await fetchAccountArticles(searchQuery);
+    if (platform === 'xiaohongshu') {
+      // 小红书平台 - 使用fetch接口
+      const { searchXhsByKeyword, searchXhsByUserId } = await import('@/lib/xiaohongshu-client');
+      
+      if (searchType === 'account') {
+        console.log(`按小红书用户ID获取笔记: ${searchQuery}`);
+        const result = await searchXhsByUserId(searchQuery);
+        articles = result.articles.map(article => ({
+          title: article.title,
+          content: article.title, // 小红书笔记通常标题就是主要内容
+          likes: article.likes,
+          views: article.views || 0,
+          reads: article.views || 0,
+          url: article.url,
+          publishTime: article.createTime || new Date().toISOString(),
+        }));
+      } else {
+        console.log(`按关键词获取小红书笔记: ${searchQuery}`);
+        const xhsArticles = await searchXhsByKeyword(searchQuery, 1, {
+          sort: 'popularity_descending',
+          note_type: 'image',
+          note_time: '近一周',
+        });
+        articles = xhsArticles.map(article => ({
+          title: article.title,
+          content: article.title,
+          likes: article.likes,
+          views: article.views || 0,
+          reads: article.views || 0,
+          url: article.url,
+          publishTime: new Date().toISOString(),
+        }));
+      }
     } else {
-      console.log(`按关键词获取文章: ${searchQuery}`);
-      articles = await fetchWechatArticles(searchQuery);
+      // 微信公众号平台
+      if (searchType === 'account') {
+        console.log(`按公众号名称获取文章: ${searchQuery}`);
+        articles = await fetchAccountArticles(searchQuery);
+      } else {
+        console.log(`按关键词获取文章: ${searchQuery}`);
+        articles = await fetchWechatArticles(searchQuery);
+      }
     }
 
     if (articles.length === 0) {
+      const platformName = platform === 'wechat' ? '公众号' : '小红书';
+      const contentType = platform === 'wechat' ? '文章' : '笔记';
       return NextResponse.json({
         success: false,
         error: searchType === 'account'
-          ? "未找到该公众号今日文章,请检查公众号名称或稍后重试"
-          : "未找到相关文章,请尝试其他关键词",
+          ? `未找到该${platformName}的${contentType},请检查${platform === 'wechat' ? '公众号名称' : '用户ID'}或稍后重试`
+          : `未找到相关${contentType},请尝试其他关键词`,
       }, { status: 404 });
     }
 

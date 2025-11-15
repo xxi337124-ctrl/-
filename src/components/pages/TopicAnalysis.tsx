@@ -11,6 +11,7 @@ import type { InsightReport, EnhancedInsightReport } from "@/types";
 export default function TopicAnalysisPage() {
   const router = useRouter();
   const [keyword, setKeyword] = useState("");
+  const platform = 'wechat'; // 固定为公众号平台
   const [searchType, setSearchType] = useState<'keyword' | 'account'>('keyword');
   const [loading, setLoading] = useState(false);
   const [progressSteps, setProgressSteps] = useState<{ text: string; completed: boolean }[]>([]);
@@ -35,11 +36,11 @@ export default function TopicAnalysisPage() {
     const steps = [
       {
         text: searchType === 'keyword'
-          ? "正在获取公众号文章..."
-          : "正在获取公众号最新文章...",
+          ? `正在获取公众号文章...`
+          : `正在获取公众号最新文章...`,
         completed: false
       },
-      { text: "AI 分析热门文章...", completed: false },
+      { text: `AI 分析热门文章...`, completed: false },
       { text: "AI 生成选题洞察...", completed: false },
       { text: "保存分析结果...", completed: false },
       { text: "报告生成完成", completed: false },
@@ -85,6 +86,7 @@ export default function TopicAnalysisPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          platform,
           searchType,
           query: keyword
         }),
@@ -181,13 +183,14 @@ export default function TopicAnalysisPage() {
     }
   };
 
-  // 导航到内容创作页面
+  // 导航到小红书二创页面
   const handleNavigateToContentCreation = () => {
     if (!currentInsightId) {
       alert('请先完成选题分析');
       return;
     }
-    router.push(`/?tab=content-creation&insight=${currentInsightId}`);
+    // 跳转到小红书二创页面
+    router.push(`/?tab=xiaohongshu-rewrite`);
   };
 
   // 保存报告为图片 (TODO: 实现图片生成)
@@ -201,10 +204,10 @@ export default function TopicAnalysisPage() {
         {/* 头部 */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            选题分析
+            公众号爆文分析
           </h1>
           <p className="text-sm text-gray-500">
-            输入关键词,AI智能分析公众号文章,生成选题洞察报告
+            输入关键词或公众号名称,AI智能分析公众号内容,生成选题洞察报告
           </p>
         </div>
 
@@ -212,19 +215,26 @@ export default function TopicAnalysisPage() {
         <Card className="mb-6 border-0 shadow-sm">
           <CardContent className="pt-6 pb-6">
             {/* 搜索类型切换 */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-3 mb-4">
               <Button
                 variant={searchType === 'keyword' ? 'default' : 'outline'}
                 onClick={() => setSearchType('keyword')}
-                className="flex-1 h-10"
+                className="flex-1 h-11 text-base font-medium"
               >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                </svg>
                 关键词搜索
               </Button>
               <Button
                 variant={searchType === 'account' ? 'default' : 'outline'}
                 onClick={() => setSearchType('account')}
-                className="flex-1 h-10"
+                className="flex-1 h-11 text-base font-medium"
               >
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                  <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                </svg>
                 公众号搜索
               </Button>
             </div>
@@ -239,7 +249,7 @@ export default function TopicAnalysisPage() {
                 <Input
                   placeholder={
                     searchType === 'keyword'
-                      ? "输入关键词,例如:AI、ChatGPT、私域运营"
+                      ? "输入关键词,例如:AI、ChatGPT、私域运营、内容营销"
                       : "输入公众号名称,例如:36氪、人人都是产品经理"
                   }
                   value={keyword}
@@ -273,41 +283,26 @@ export default function TopicAnalysisPage() {
               </Button>
             </div>
 
-            {/* 热门关键词标签 */}
-            {searchType === 'keyword' && (
-              <div className="mt-4 flex items-center gap-3 text-sm">
-                <span className="text-gray-500">热门关键词:</span>
-                <div className="flex flex-wrap gap-2">
-                  {["AI创作", "私域运营", "内容营销", "用户增长"].map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => setKeyword(tag)}
-                      className="px-3 py-1 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
+            {/* 热门关键词/示例公众号 */}
+            <div className="mt-4 flex items-center gap-3 text-sm">
+              <span className="text-gray-500">
+                {searchType === 'keyword' ? '热门关键词:' : '示例公众号:'}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {(searchType === 'keyword'
+                  ? ["AI创作", "私域运营", "内容营销", "用户增长", "产品设计"]
+                  : ["36氪", "人人都是产品经理", "晚点LatePost", "虎嗅", "新榜"]
+                ).map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setKeyword(tag)}
+                    className="px-3 py-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors font-medium"
+                  >
+                    {tag}
+                  </button>
+                ))}
               </div>
-            )}
-
-            {/* 公众号示例 */}
-            {searchType === 'account' && (
-              <div className="mt-4 flex items-center gap-3 text-sm">
-                <span className="text-gray-500">示例公众号:</span>
-                <div className="flex flex-wrap gap-2">
-                  {["36氪", "人人都是产品经理", "晚点LatePost", "虎嗅"].map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => setKeyword(tag)}
-                      className="px-3 py-1 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* 智能分析提示 */}
             {keyword.trim() && !loading && (
@@ -1100,7 +1095,36 @@ export default function TopicAnalysisPage() {
                         className="flex-1 h-9 bg-indigo-600 hover:bg-indigo-700 text-white"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // 查看详情的逻辑已经在Card的onClick中
+                          // 触发查看详情逻辑
+                          setKeyword(insight.keyword);
+                          const enhancedReport: EnhancedInsightReport = {
+                            topLikedArticles: JSON.parse(insight.topLikedArticles),
+                            topInteractiveArticles: JSON.parse(insight.topInteractiveArticles),
+                            wordCloud: JSON.parse(insight.wordCloud),
+                            insights: JSON.parse(insight.insights),
+                            articleSummaries: insight.articleSummaries ? JSON.parse(insight.articleSummaries) : [],
+                            structuredInsights: insight.structuredInsights ? JSON.parse(insight.structuredInsights) : [],
+                            analysisMetadata: insight.analysisMetadata ? JSON.parse(insight.analysisMetadata) : null,
+                          };
+                          setReport(enhancedReport);
+                          setCurrentInsightId(insight.id);
+
+                          // 加载文章数据
+                          const topLiked = JSON.parse(insight.topLikedArticles);
+                          const topInteractive = JSON.parse(insight.topInteractiveArticles);
+
+                          // 合并并去重文章
+                          const articlesMap = new Map();
+                          [...topLiked, ...topInteractive].forEach((article: any) => {
+                            if (article.url && !articlesMap.has(article.url)) {
+                              articlesMap.set(article.url, article);
+                            }
+                          });
+
+                          setAllArticles(Array.from(articlesMap.values()));
+
+                          // 滚动到顶部查看详情
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                       >
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1115,8 +1139,8 @@ export default function TopicAnalysisPage() {
                         className="flex-1 h-9 border-purple-300 text-purple-700 hover:bg-purple-50"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // 跳转到AI创作页面
-                          router.push(`/?tab=content-creation&insight=${insight.id}`);
+                          // 跳转到小红书二创页面
+                          router.push(`/?tab=xiaohongshu-rewrite`);
                         }}
                       >
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
