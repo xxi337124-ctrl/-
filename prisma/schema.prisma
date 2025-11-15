@@ -1,0 +1,106 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 洞察报告表
+model Insight {
+  id                     String    @id @default(cuid())
+  keyword                String
+  searchType             String    @default("keyword") // 搜索类型: keyword | account
+  totalArticles          Int
+  topLikedArticles       String    // JSON string
+  topInteractiveArticles String    // JSON string
+  wordCloud              String    // JSON string
+  insights               String    // JSON string
+  articleSummaries       String?   // JSON string: ArticleSummary[]
+  structuredInsights     String?   // JSON string: StructuredInsight[]
+  analysisMetadata       String?   // JSON string: analysis metadata
+  createdAt              DateTime  @default(now())
+  viewCount              Int       @default(1)
+  isFavorite             Boolean   @default(false)
+  lastViewedAt           DateTime  @default(now())
+  articles               Article[]
+
+  @@map("insights")
+}
+
+// 文章表
+model Article {
+  id         String    @id @default(cuid())
+  title      String
+  content    String    // 富文本HTML
+  status     Status    @default(DRAFT)
+  wordCount  Int       @default(0)
+  tags       String    // JSON string
+  images     String    // JSON string
+  insightId  String?
+  insight    Insight?  @relation(fields: [insightId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  publishes  Publish[]
+
+  @@map("articles")
+}
+
+// 文章状态枚举
+enum Status {
+  DRAFT
+  PENDING
+  PUBLISHED_XHS
+  PUBLISHED_WECHAT
+  PUBLISHED_ALL
+}
+
+// 发布记录表
+model Publish {
+  id          String   @id @default(cuid())
+  articleId   String
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  platform    Platform
+  publishedAt DateTime @default(now())
+  result      String   // JSON string
+
+  @@map("publishes")
+}
+
+// 发布平台枚举
+enum Platform {
+  XIAOHONGSHU
+  WECHAT
+}
+
+// 创作任务表
+model CreationTask {
+  id          String         @id @default(cuid())
+  insightId   String
+  topicIndexes String       // JSON array
+  length      String
+  style       String
+  platform    String
+  imageStrategy String
+  status      TaskStatus     @default(PENDING)
+  progress    Int            @default(0) // 0-100
+  progressMessage String?
+  articleId   String?
+  error       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("creation_tasks")
+}
+
+// 任务状态枚举
+enum TaskStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
