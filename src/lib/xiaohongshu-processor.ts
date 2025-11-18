@@ -454,7 +454,7 @@ export class XiaohongshuProcessor {
 
         // 获取用户配置的图片分析提示词
         const { prisma } = await import("@/lib/prisma");
-        const settings = await prisma.promptSettings.findUnique({
+        const settings = await prisma.prompt_settings.findUnique({
           where: { userId: "default" },
         });
 

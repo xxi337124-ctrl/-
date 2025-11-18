@@ -563,12 +563,12 @@ export default function CreationModal({ isOpen, onClose, initialData }: Creation
               </div>
             </div>
 
-            {/* 生成结果显示 */}
+            {/* 生成结果显示 - 文案和图片分开 */}
             {generatedContent && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-4"
+                className="space-y-6"
               >
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center gap-2 text-green-700 mb-2">
@@ -576,36 +576,116 @@ export default function CreationModal({ isOpen, onClose, initialData }: Creation
                     <span className="font-medium">内容生成完成！</span>
                   </div>
                   <div className="text-sm text-green-600">
-                    成功生成 {generatedContent.length} 字内容
+                    成功生成 {generatedContent.replace(/<[^>]*>/g, '').length} 字内容
                     {generatedImages.length > 0 && `，${generatedImages.length} 张配图`}
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-gray-800">生成的内容</h4>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedContent);
-                        alert('内容已复制到剪贴板');
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-700"
-                    >
-                      复制内容
-                    </button>
+                {/* 文案区域 */}
+                <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                      <FiFileText className="w-5 h-5 text-blue-600" />
+                      生成的文案
+                    </h4>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedContent.replace(/<[^>]*>/g, ''));
+                          alert('纯文本已复制到剪贴板');
+                        }}
+                        className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50 transition-colors"
+                      >
+                        复制文本
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedContent);
+                          alert('HTML格式已复制到剪贴板');
+                        }}
+                        className="px-3 py-1.5 text-sm text-purple-600 hover:text-purple-700 border border-purple-300 rounded-md hover:bg-purple-50 transition-colors"
+                      >
+                        复制HTML
+                      </button>
+                    </div>
                   </div>
-                  <div className="max-h-64 overflow-y-auto bg-white p-4 rounded border text-sm">
-                    {generatedContent}
+                  <div className="max-h-96 overflow-y-auto bg-gray-50 p-6 rounded-lg border border-gray-200">
+                    <div
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: generatedContent }}
+                    />
+                  </div>
+                  <div className="mt-3 text-xs text-gray-500 flex items-center gap-4">
+                    <span>字数: {generatedContent.replace(/<[^>]*>/g, '').length}</span>
+                    <span>段落: {(generatedContent.match(/<p>/g) || []).length}</span>
+                    <span>标题: {(generatedContent.match(/<h[1-6]>/g) || []).length}</span>
                   </div>
                 </div>
 
+                {/* 配图区域 */}
                 {generatedImages.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-medium text-gray-800 mb-3">生成的配图</h4>
-                    <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <FiImage className="w-5 h-5 text-purple-600" />
+                        生成的配图
+                        <span className="text-sm font-normal text-gray-500">({generatedImages.length} 张)</span>
+                      </h4>
+                      <button
+                        onClick={async () => {
+                          // 批量下载图片
+                          for (let i = 0; i < generatedImages.length; i++) {
+                            const img = generatedImages[i];
+                            const link = document.createElement('a');
+                            link.href = img;
+                            link.download = `配图_${i + 1}.png`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            // 延迟以避免浏览器阻止多次下载
+                            if (i < generatedImages.length - 1) {
+                              await new Promise(resolve => setTimeout(resolve, 500));
+                            }
+                          }
+                        }}
+                        className="px-3 py-1.5 text-sm text-purple-600 hover:text-purple-700 border border-purple-300 rounded-md hover:bg-purple-50 transition-colors flex items-center gap-1"
+                      >
+                        <FiUpload className="w-4 h-4" />
+                        批量下载
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {generatedImages.map((image, index) => (
-                        <div key={index} className="aspect-square bg-white rounded border overflow-hidden">
-                          <img src={image} alt={`配图 ${index + 1}`} className="w-full h-full object-cover" />
+                        <div key={index} className="group relative">
+                          <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-200 hover:border-purple-400 transition-colors">
+                            <img
+                              src={image}
+                              alt={`配图 ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => window.open(image, '_blank')}
+                                className="px-3 py-2 bg-white text-gray-800 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors"
+                              >
+                                查看
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = image;
+                                  link.download = `配图_${index + 1}.png`;
+                                  link.click();
+                                }}
+                                className="px-3 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
+                              >
+                                下载
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-center text-gray-600 mt-2">配图 {index + 1}</p>
                         </div>
                       ))}
                     </div>

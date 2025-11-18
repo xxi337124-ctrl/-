@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     console.log(`📝 开始文案二创，原文长度: ${originalContent.length}`);
 
     // 获取用户配置的提示词
-    const promptSettings = await prisma.promptSettings.findUnique({
+    const promptSettings = await prisma.prompt_settings.findUnique({
       where: { userId: "default" },
     });
 

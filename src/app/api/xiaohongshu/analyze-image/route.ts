@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     console.log(`🖼️ 开始分析图片: ${imageUrl.slice(0, 80)}...`);
 
     // 获取用户配置的图片分析提示词
-    const promptSettings = await prisma.promptSettings.findUnique({
+    const promptSettings = await prisma.prompt_settings.findUnique({
       where: { userId: "default" },
     });
 
@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest) {
     console.log(`🖼️ 开始批量分析 ${imageUrls.length} 张图片...`);
 
     // 获取用户配置的图片分析提示词
-    const promptSettings = await prisma.promptSettings.findUnique({
+    const promptSettings = await prisma.prompt_settings.findUnique({
       where: { userId: "default" },
     });
 

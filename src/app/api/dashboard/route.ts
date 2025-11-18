@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     weekAgo.setDate(weekAgo.getDate() - 7);
 
     // 今日分析数
-    const todayInsights = await prisma.insight.count({
+    const todayInsights = await prisma.insights.count({
       where: {
         createdAt: {
           gte: today,
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 昨日分析数
-    const yesterdayInsights = await prisma.insight.count({
+    const yesterdayInsights = await prisma.insights.count({
       where: {
         createdAt: {
           gte: yesterday,
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 今日生成文章数
-    const todayArticles = await prisma.article.count({
+    const todayArticles = await prisma.articles.count({
       where: {
         createdAt: {
           gte: today,
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 昨日生成文章数
-    const yesterdayArticles = await prisma.article.count({
+    const yesterdayArticles = await prisma.articles.count({
       where: {
         createdAt: {
           gte: yesterday,
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 今日发布数
-    const todayPublished = await prisma.article.count({
+    const todayPublished = await prisma.articles.count({
       where: {
         createdAt: {
           gte: today,
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 昨日发布数
-    const yesterdayPublished = await prisma.article.count({
+    const yesterdayPublished = await prisma.articles.count({
       where: {
         createdAt: {
           gte: yesterday,
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 待审核数
-    const pending = await prisma.article.count({
+    const pending = await prisma.articles.count({
       where: {
         status: "PENDING",
       },
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 
       const dayName = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
 
-      const analysis = await prisma.insight.count({
+      const analysis = await prisma.insights.count({
         where: {
           createdAt: {
             gte: date,
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const creation = await prisma.article.count({
+      const creation = await prisma.articles.count({
         where: {
           createdAt: {
             gte: date,
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const publish = await prisma.article.count({
+      const publish = await prisma.articles.count({
         where: {
           createdAt: {
             gte: date,
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取平台分布统计
-    const xhsPublished = await prisma.article.count({
+    const xhsPublished = await prisma.articles.count({
       where: {
         status: {
           in: ["PUBLISHED_XHS", "PUBLISHED_ALL"],
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const wechatPublished = await prisma.article.count({
+    const wechatPublished = await prisma.articles.count({
       where: {
         status: {
           in: ["PUBLISHED_WECHAT", "PUBLISHED_ALL"],
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
     };
 
     // 获取最新文章
-    const latestArticles = await prisma.article.findMany({
+    const latestArticles = await prisma.articles.findMany({
       take: 4,
       orderBy: {
         createdAt: "desc",
@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
     });
 
     // 获取热门关键词（从洞察中统计）
-    const allInsights = await prisma.insight.findMany({
+    const allInsights = await prisma.insights.findMany({
       where: {
         createdAt: {
           gte: weekAgo,

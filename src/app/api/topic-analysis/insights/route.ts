@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { openRouterClient } from "@/lib/openai";
 import { calculateInteractionRate } from "@/lib/utils";
 import type { ArticleSummary, StructuredInsight } from "@/types";
+import { randomUUID } from "crypto";
 
 // 分析单篇文章
 async function analyzeArticle(article: any): Promise<ArticleSummary | null> {
@@ -61,7 +62,7 @@ async function generateStructuredInsights(
 ): Promise<StructuredInsight[]> {
   try {
     // 获取用户的洞察提示词设置
-    const promptSettings = await prisma.promptSettings.findUnique({
+    const promptSettings = await prisma.prompt_settings.findUnique({
       where: { userId: 'default' }
     });
 
@@ -156,7 +157,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔍 开始生成洞察: ${fetchId}`);
 
     // 1. 读取抓取记录
-    const fetchRecord = await prisma.articleFetch.findUnique({
+    const fetchRecord = await prisma.article_fetches.findUnique({
       where: { id: fetchId }
     });
 
@@ -240,8 +241,9 @@ export async function POST(request: NextRequest) {
     };
 
     // 7. 保存洞察到数据库
-    const insight = await prisma.insight.create({
+    const insight = await prisma.insights.create({
       data: {
+        id: randomUUID(),
         fetchId: fetchRecord.id,
         keyword: fetchRecord.keyword,
         searchType: fetchRecord.searchType,

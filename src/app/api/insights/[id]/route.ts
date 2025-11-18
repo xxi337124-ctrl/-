@@ -10,7 +10,7 @@ export async function GET(
     const { id } = await params;
 
     // Increment view count and update lastViewedAt
-    const insight = await prisma.insight.update({
+    const insight = await prisma.insights.update({
       where: { id },
       data: {
         viewCount: { increment: 1 },
@@ -40,7 +40,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const insight = await prisma.insight.update({
+    const insight = await prisma.insights.update({
       where: { id },
       data: body,
     });
@@ -66,7 +66,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    await prisma.insight.delete({
+    await prisma.insights.delete({
       where: { id },
     });
 

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const { articleId, platform } = await request.json();
 
     // 1. 获取文章
-    const article = await prisma.article.findUnique({
+    const article = await prisma.articles.findUnique({
       where: { id: articleId },
     });
 
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. 保存发布记录
-    await prisma.publish.create({
+    await prisma.publishes.create({
       data: {
         articleId: article.id,
         platform: platformEnum,
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 4. 更新文章状态
-    const publishes = await prisma.publish.findMany({
+    const publishes = await prisma.publishes.findMany({
       where: { articleId: article.id },
     });
 
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       newStatus = Status.PUBLISHED_ALL;
     }
 
-    await prisma.article.update({
+    await prisma.articles.update({
       where: { id: article.id },
       data: { status: newStatus },
     });

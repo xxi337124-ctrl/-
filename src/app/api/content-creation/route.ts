@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { openaiClient } from "@/lib/openai";
+import { doubaoClient } from "@/lib/doubao-client";
 import { siliconFlowClient } from "@/lib/siliconflow";
 import {
   articlePrompts,
@@ -22,7 +23,7 @@ async function generateArticle(
   const platform = getPlatformName(style);
 
   // 获取用户的提示词设置
-  const promptSettings = await prisma.promptSettings.findUnique({
+  const promptSettings = await prisma.prompt_settings.findUnique({
     where: { userId: 'default' }
   });
 
@@ -287,7 +288,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. 创建任务记录
-    const task = await prisma.creationTask.create({
+    const task = await prisma.creation_tasks.create({
       data: taskData,
     });
 
@@ -320,7 +321,7 @@ async function processCreationTask(taskId: string) {
     console.log(`\n🚀 ========== 开始处理任务 ${taskId} ==========`);
 
     // 更新状态为处理中
-    await prisma.creationTask.update({
+    await prisma.creation_tasks.update({
       where: { id: taskId },
       data: {
         status: "PROCESSING",
@@ -331,7 +332,7 @@ async function processCreationTask(taskId: string) {
 
     console.log('✅ 任务状态已更新为 PROCESSING');
 
-    const task = await prisma.creationTask.findUnique({
+    const task = await prisma.creation_tasks.findUnique({
       where: { id: taskId },
     });
 
@@ -358,12 +359,12 @@ async function processCreationTask(taskId: string) {
       // direct模式：从ArticleFetch加载单篇文章
       console.log("🎯 direct模式：基于单篇文章创作");
 
-      await prisma.creationTask.update({
+      await prisma.creation_tasks.update({
         where: { id: taskId },
         data: { progress: 10, progressMessage: "正在加载原文数据..." },
       });
 
-      fetchRecord = await prisma.articleFetch.findUnique({
+      fetchRecord = await prisma.articlesFetch.findUnique({
         where: { id: topicIndexesData.fetchId }
       });
 
@@ -391,7 +392,7 @@ async function processCreationTask(taskId: string) {
       // insight模式：原有逻辑
       console.log("📊 insight模式：基于洞察创作");
 
-      await prisma.creationTask.update({
+      await prisma.creation_tasks.update({
         where: { id: taskId },
         data: { progress: 10, progressMessage: "正在获取洞察数据..." },
       });
@@ -400,7 +401,7 @@ async function processCreationTask(taskId: string) {
         throw new Error("insightId 不能为空");
       }
 
-      const insight = await prisma.insight.findUnique({
+      const insight = await prisma.insights.findUnique({
         where: { id: task.insightId },
       });
 
@@ -415,7 +416,7 @@ async function processCreationTask(taskId: string) {
     }
 
     // 2. AI生成文章
-    await prisma.creationTask.update({
+    await prisma.creation_tasks.update({
       where: { id: taskId },
       data: { progress: 30, progressMessage: "AI正在生成文章内容..." },
     });
@@ -431,7 +432,7 @@ async function processCreationTask(taskId: string) {
     console.log(`  ✓ 文章生成完成: ${title}`);
 
     // 3. 确定图片数量
-    await prisma.creationTask.update({
+    await prisma.creation_tasks.update({
       where: { id: taskId },
       data: { progress: 50, progressMessage: "正在准备生成配图..." },
     });
@@ -442,85 +443,41 @@ async function processCreationTask(taskId: string) {
     let images: string[] = [];
     let finalContent = content;
 
-    // 4. 生成图片 (支持文生图和图生图两种模式)
+    // 4. 生成图片 (使用SiliconFlow文生图 + Gemini 2.5 Pro生成提示词)
     if (siliconFlowClient.isConfigured()) {
       try {
-        // 获取用户的提示词设置
-        const promptSettings = await prisma.promptSettings.findUnique({
-          where: { userId: 'default' }
+        console.log("🎨 使用智能创作文生图流程...");
+
+        await prisma.creation_tasks.update({
+          where: { id: taskId },
+          data: { progress: 60, progressMessage: "正在使用Gemini 2.5 Pro分析文案生成图片提示词..." },
         });
 
-        // 判断是否使用图生图模式
-        const useImageToImage = isDirectMode && targetArticle?.images?.length > 0;
+        // 步骤1: 使用 Gemini 2.5 Pro 分析文案，生成图片提示词
+        console.log("📝 步骤1: Gemini 2.5 Pro分析文案并生成提示词...");
+        const imagePromptsList = await generateImagePrompts(title, content, imageCount, task.platform);
+        console.log(`✅ 生成了 ${imagePromptsList.length} 个高质量图片提示词`);
 
-        if (useImageToImage) {
-          // 图生图模式
-          console.log("🎨 使用图生图模式...");
+        await prisma.creation_tasks.update({
+          where: { id: taskId },
+          data: { progress: 70, progressMessage: `正在使用SiliconFlow生成 ${imageCount} 张高质量配图...` },
+        });
 
-          await prisma.creationTask.update({
+        // 步骤2: 使用 SiliconFlow 进行文生图
+        console.log("🖼️ 步骤2: SiliconFlow根据提示词生成图片...");
+        const imageSize = task.platform === "xiaohongshu" ? "1024x1024" : "1024x576";
+        images = await siliconFlowClient.generateMultipleImages(imagePromptsList, { imageSize });
+        console.log(`✅ SiliconFlow 文生图完成: ${images.filter(img => img).length}/${images.length}张`);
+
+        // 智能插入图片
+        if (images.filter(img => img).length > 0) {
+          await prisma.creation_tasks.update({
             where: { id: taskId },
-            data: { progress: 60, progressMessage: "正在准备原图进行重绘..." },
+            data: { progress: 85, progressMessage: "正在将配图插入到文章..." },
           });
 
-          // direct模式：直接使用targetArticle的配图
-          const originalImages = targetArticle.images.slice(0, imageCount);
-
-          console.log(`📸 找到${originalImages.length}张原图`);
-
-          if (originalImages.length > 0) {
-            await prisma.creationTask.update({
-              where: { id: taskId },
-              data: { progress: 70, progressMessage: `正在图生图 ${originalImages.length} 张配图...` },
-            });
-
-            const imagePrompt = promptSettings?.imagePrompt || "扁平插画风格，配色温暖明亮，现代简约，专业质感";
-            const strength = promptSettings?.strength || 0.5;
-
-            images = await siliconFlowClient.batchImageToImage(
-              originalImages.map((url: string) => ({
-                url,
-                prompt: `${imagePrompt}, high quality, professional`
-              })),
-              { strength }
-            );
-
-            console.log(`✅ 图生图完成: ${images.length}张`);
-          } else {
-            console.warn("⚠️ 未找到原图，降级为文生图模式");
-            // 降级到文生图
-            const imagePromptsList = await generateImagePrompts(title, content, imageCount, task.platform);
-            const imageSize = task.platform === "xiaohongshu" ? "1024x1024" : "1024x576";
-            images = await siliconFlowClient.generateMultipleImages(imagePromptsList, { imageSize });
-          }
-        } else {
-          // 文生图模式（原有逻辑）
-          console.log("💡 使用文生图模式...");
-
-          await prisma.creationTask.update({
-            where: { id: taskId },
-            data: { progress: 60, progressMessage: "正在生成图片提示词..." },
-          });
-
-          const imagePromptsList = await generateImagePrompts(title, content, imageCount, task.platform);
-
-          await prisma.creationTask.update({
-            where: { id: taskId },
-            data: { progress: 70, progressMessage: `正在生成 ${imageCount} 张配图...` },
-          });
-
-          const imageSize = task.platform === "xiaohongshu" ? "1024x1024" : "1024x576";
-          images = await siliconFlowClient.generateMultipleImages(imagePromptsList, { imageSize });
-        }
-
-        // 4.3 智能插入图片
-        if (images.length > 0) {
-          await prisma.creationTask.update({
-            where: { id: taskId },
-            data: { progress: 85, progressMessage: "正在插入配图到文章..." },
-          });
-
-          console.log("📌 步骤5: 智能插入图片到文章...");
-          finalContent = insertImagesIntelligently(content, images);
+          console.log("📌 步骤3: 智能插入图片到文章...");
+          finalContent = insertImagesIntelligently(content, images.filter(img => img));
         } else {
           console.warn("⚠️ 没有成功生成图片，使用无图文章");
         }
@@ -534,13 +491,13 @@ async function processCreationTask(taskId: string) {
     }
 
     // 5. 保存文章
-    await prisma.creationTask.update({
+    await prisma.creation_tasks.update({
       where: { id: taskId },
       data: { progress: 95, progressMessage: "正在保存文章..." },
     });
 
     console.log("💾 步骤6: 保存文章到数据库...");
-    const article = await prisma.article.create({
+    const article = await prisma.articles.create({
       data: {
         title,
         content: finalContent,
@@ -555,7 +512,7 @@ async function processCreationTask(taskId: string) {
     console.log(`✅ 文章已保存: ID=${article.id}`);
 
     // 6. 更新任务为完成 - 🔥 使用事务确保原子性
-    const updatedTask = await prisma.creationTask.update({
+    const updatedTask = await prisma.creation_tasks.update({
       where: { id: taskId },
       data: {
         status: "COMPLETED",
@@ -577,7 +534,7 @@ async function processCreationTask(taskId: string) {
     console.error(`❌ 任务${taskId}处理失败:`, error);
 
     // 更新任务为失败状态
-    await prisma.creationTask.update({
+    await prisma.creation_tasks.update({
       where: { id: taskId },
       data: {
         status: "FAILED",

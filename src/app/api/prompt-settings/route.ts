@@ -7,13 +7,13 @@ import { prisma } from "@/lib/prisma";
  */
 export async function GET() {
   try {
-    let settings = await prisma.promptSettings.findUnique({
+    let settings = await prisma.prompt_settings.findUnique({
       where: { userId: 'default' }
     });
 
     // 如果不存在，创建默认设置
     if (!settings) {
-      settings = await prisma.promptSettings.create({
+      settings = await prisma.prompt_settings.create({
         data: {
           userId: 'default',
           textPrompt: '以专业但易懂的方式撰写，结合实际案例，语言自然流畅',
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       seed,
     } = body;
 
-    const settings = await prisma.promptSettings.upsert({
+    const settings = await prisma.prompt_settings.upsert({
       where: { userId: 'default' },
       update: {
         textPrompt,

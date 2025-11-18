@@ -10,7 +10,7 @@ export async function GET(
     const { taskId } = await params;
 
     // 🔥 强制禁用缓存,确保获取最新数据
-    const task = await prisma.creationTask.findUnique({
+    const task = await prisma.creation_tasks.findUnique({
       where: { id: taskId },
     });
 
@@ -31,7 +31,7 @@ export async function GET(
     // 如果任务已完成,返回文章数据
     let article = null;
     if (task.status === "COMPLETED" && task.articleId) {
-      article = await prisma.article.findUnique({
+      article = await prisma.articles.findUnique({
         where: { id: task.articleId },
       });
       console.log(`✅ [轮询] 文章已加载:`, article?.title);

@@ -54,8 +54,8 @@ function HomeContent({ activeTab, setActiveTab }: { activeTab: ActiveTab; setAct
         }
       }
 
-      // 如果有活动任务，轮询任务状态
-      if (activeTask && activeTask.status !== 'COMPLETED' && activeTask.status !== 'FAILED') {
+      // 如果有活动任务，轮询任务状态（仅限content-creation类型，小红书二创由组件内部管理）
+      if (activeTask && activeTask.status !== 'COMPLETED' && activeTask.status !== 'FAILED' && activeTask.type === 'content-creation') {
         fetch(`/api/content-creation/${activeTask.id}`)
           .then(res => res.json())
           .then(data => {

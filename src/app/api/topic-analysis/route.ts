@@ -505,7 +505,7 @@ export async function POST(request: NextRequest) {
     };
 
     // 7. 保存到数据库
-    const insight = await prisma.insight.create({
+    const insight = await prisma.insights.create({
       data: {
         keyword: searchQuery,
         searchType: searchType,

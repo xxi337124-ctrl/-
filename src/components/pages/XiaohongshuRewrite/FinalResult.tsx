@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import XhsImage from '@/components/XhsImage';
 import type { XhsNote, RewriteResult } from './index';
 
 interface FinalResultProps {
@@ -20,6 +21,7 @@ export default function FinalResult({
 }: FinalResultProps) {
   const [regeneratingImages, setRegeneratingImages] = useState<Set<number>>(new Set());
   const [localImages, setLocalImages] = useState<string[]>(result.rewritten.images);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleCopyText = async (text: string) => {
     try {
@@ -112,6 +114,39 @@ export default function FinalResult({
     }
   };
 
+  const handleSaveToDraft = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/xiaohongshu/save-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `【二创】${originalNote.title}`,
+          content: result.rewritten.content,
+          images: localImages,
+          originalNote: {
+            title: originalNote.title,
+            url: originalNote.url,
+            author: originalNote.author,
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('保存成功！您可以在"发布管理"中查看和编辑。');
+      } else {
+        throw new Error(data.error || '保存失败');
+      }
+    } catch (error: any) {
+      console.error('保存失败:', error);
+      alert(`保存失败: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -187,7 +222,7 @@ export default function FinalResult({
                     {/* 原图 */}
                     <div>
                       <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 mb-2">
-                        <img
+                        <XhsImage
                           src={originalImage}
                           alt={`原图 ${index + 1}`}
                           className="w-full h-full object-cover"
@@ -206,7 +241,7 @@ export default function FinalResult({
                       ) : generatedImage ? (
                         <>
                           <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 mb-2">
-                            <img
+                            <XhsImage
                               src={generatedImage}
                               alt={`新图 ${index + 1}`}
                               className="w-full h-full object-cover"
@@ -265,13 +300,21 @@ export default function FinalResult({
       {/* 操作按钮 */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Button
-              className="flex-1 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600"
+              className="bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600"
               size="lg"
               onClick={() => handleCopyText(result.rewritten.content)}
             >
               📋 复制全部文案
+            </Button>
+            <Button
+              className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+              size="lg"
+              onClick={handleSaveToDraft}
+              disabled={isSaving}
+            >
+              {isSaving ? '保存中...' : '💾 保存到草稿箱'}
             </Button>
             <Button
               variant="outline"

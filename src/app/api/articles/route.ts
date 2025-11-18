@@ -9,14 +9,27 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
 
     const where: any = {};
+
+    // 状态筛选逻辑
     if (status && status !== "all") {
-      where.status = status;
+      if (status === "PUBLISHED") {
+        // 历史记录：获取所有已发布的文章（包含PUBLISHED关键字的状态）
+        where.status = {
+          contains: "PUBLISHED"
+        };
+      } else if (status === "DRAFT") {
+        // 发布管理：只获取草稿状态的文章
+        where.status = "DRAFT";
+      } else {
+        where.status = status;
+      }
     }
+
     if (search) {
       where.title = { contains: search };
     }
 
-    const articles = await prisma.article.findMany({
+    const articles = await prisma.articles.findMany({
       where,
       include: {
         publishes: true,
@@ -42,7 +55,7 @@ export async function POST(request: NextRequest) {
   try {
     const { title, content, status, wordCount, insightId } = await request.json();
 
-    const article = await prisma.article.create({
+    const article = await prisma.articles.create({
       data: {
         title: title || "无标题",
         content: content || "",

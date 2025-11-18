@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const article = await prisma.article.findUnique({
+    const article = await prisma.articles.findUnique({
       where: { id },
       include: {
         insight: true,
@@ -45,7 +45,7 @@ export async function PUT(
     const { id } = await params;
     const { title, content, status, wordCount } = await request.json();
 
-    const article = await prisma.article.update({
+    const article = await prisma.articles.update({
       where: { id },
       data: {
         title,
@@ -75,7 +75,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await prisma.article.delete({
+    await prisma.articles.delete({
       where: { id },
     });
 

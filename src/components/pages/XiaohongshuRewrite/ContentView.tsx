@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import XhsImage from '@/components/XhsImage';
 import type { XhsNote } from './index';
 
 interface ContentViewProps {
@@ -43,7 +44,7 @@ export default function ContentView({ note, onStartRewrite, onBack }: ContentVie
                     key={index}
                     className="aspect-square rounded-lg overflow-hidden bg-gray-100"
                   >
-                    <img
+                    <XhsImage
                       src={image}
                       alt={`图片 ${index + 1}`}
                       className="w-full h-full object-cover"

@@ -204,7 +204,7 @@ class SiliconFlowClient {
 
     try {
       const { prisma } = await import("@/lib/prisma");
-      const settings = await prisma.promptSettings.findUnique({ where: { userId: "default" } });
+      const settings = await prisma.prompt_settings.findUnique({ where: { userId: "default" } });
 
       const imageModel = settings?.imageModel || "gpt-4o-image";
       const positivePrompt = settings?.imagePositivePrompt || prompt;

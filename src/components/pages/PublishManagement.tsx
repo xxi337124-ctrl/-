@@ -25,7 +25,12 @@ export default function PublishManagementPage() {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filter !== "all") params.append("status", filter);
+      // 发布管理：all表示所有草稿+已发布，DRAFT只显示草稿，PUBLISHED只显示已发布
+      if (filter === "all") {
+        // 不添加status参数，显示所有文章
+      } else {
+        params.append("status", filter);
+      }
       if (searchQuery) params.append("search", searchQuery);
 
       const response = await fetch(`/api/articles?${params.toString()}`);
@@ -112,8 +117,7 @@ export default function PublishManagementPage() {
             value={stats.total}
             icon={<FiFileText />}
             color="blue"
-            trend={{ value: 12.5, isPositive: true }}
-            description="较上周增长"
+            description="所有待发布和已发布"
           />
           <StatCard
             title="草稿箱"
@@ -127,8 +131,7 @@ export default function PublishManagementPage() {
             value={stats.published}
             icon={<FiTrendingUp />}
             color="green"
-            trend={{ value: 8.3, isPositive: true }}
-            description="较上周增长"
+            description="已发布文章总数"
           />
           <StatCard
             title="多平台发布"

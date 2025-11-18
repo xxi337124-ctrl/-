@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       orderBy.createdAt = "desc";
     }
 
-    const insights = await prisma.insight.findMany({
+    const insights = await prisma.insights.findMany({
       where,
       orderBy,
     });

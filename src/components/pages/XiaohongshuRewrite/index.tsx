@@ -37,6 +37,7 @@ export default function XiaohongshuRewrite() {
   const [rewriteResult, setRewriteResult] = useState<RewriteResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [history, setHistory] = useState<XhsNote[]>([]);
+  const [searchResults, setSearchResults] = useState<XhsNote[]>([]); // 保存搜索结果
 
   // 加载历史记录
   useEffect(() => {
@@ -83,6 +84,11 @@ export default function XiaohongshuRewrite() {
     setCurrentStep('view');
   };
 
+  // 处理搜索结果更新
+  const handleSearchResults = (results: XhsNote[]) => {
+    setSearchResults(results);
+  };
+
   const handleStartRewrite = () => {
     if (!selectedNote) return;
     setCurrentStep('process');
@@ -97,7 +103,7 @@ export default function XiaohongshuRewrite() {
   const handleBack = () => {
     if (currentStep === 'view') {
       setCurrentStep('extract');
-      setSelectedNote(null);
+      // 不清空 selectedNote，保留搜索结果
     } else if (currentStep === 'process') {
       setCurrentStep('view');
     } else if (currentStep === 'result') {
@@ -187,10 +193,12 @@ export default function XiaohongshuRewrite() {
         {/* 内容区域 */}
         <div className="bg-white rounded-2xl shadow-xl p-8" onClick={handleContainerClick}>
           {currentStep === 'extract' && (
-            <ContentExtract 
+            <ContentExtract
               onNoteSelect={handleNoteSelect}
               history={history}
               onSelectFromHistory={handleNoteSelect}
+              searchResults={searchResults}
+              onSearchResults={handleSearchResults}
             />
           )}
 

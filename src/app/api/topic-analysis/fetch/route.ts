@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { extractImagesFromContent } from "@/lib/image-utils";
 import { searchXhsByKeyword, searchXhsByUserId } from "@/lib/xiaohongshu-client";
+import { randomUUID } from "crypto";
 
 // Dajiala API 响应类型
 interface DajialaResponse {
@@ -70,8 +71,8 @@ async function fetchWechatArticles(keyword: string) {
       return [];
     }
 
-    // 提取图片并返回
-    return data.data.map((article) => ({
+    // 提取图片并返回，限制10篇
+    return data.data.slice(0, 10).map((article) => ({
       title: article.title,
       content: article.content,
       likes: article.praise,
@@ -119,7 +120,8 @@ async function fetchAccountArticles(accountName: string) {
       article.is_deleted === "0" && article.msg_status === 2
     );
 
-    return validArticles.map((article) => ({
+    // 限制10篇
+    return validArticles.slice(0, 10).map((article) => ({
       title: article.title,
       content: article.digest,
       likes: 0,
@@ -172,7 +174,7 @@ export async function POST(request: NextRequest) {
       } else {
         // 小红书关键词搜索
         const options = xhsOptions || {};
-        const count = options.count || 20;
+        const count = options.count || 10; // 默认限制10篇
 
         // 可能需要多次请求来获取足够数量的文章
         let page = 1;
@@ -217,8 +219,9 @@ export async function POST(request: NextRequest) {
     console.log(`✅ 成功抓取 ${articles.length} 篇文章`);
 
     // 2. 保存到数据库
-    const fetchRecord = await prisma.articleFetch.create({
+    const fetchRecord = await prisma.article_fetches.create({
       data: {
+        id: randomUUID(),
         keyword: query,
         searchType: `${platform}_${searchType}`,
         articles: JSON.stringify(articles),
