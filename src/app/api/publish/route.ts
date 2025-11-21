@@ -57,17 +57,17 @@ export async function POST(request: NextRequest) {
 
     // 2. 发布到指定平台
     let result;
-    let platformEnum: Platform;
-    let newStatus: Status;
+    let platformName: string;
+    let newStatus: string;
 
     if (platform === "xiaohongshu") {
       result = await publishToXiaohongshu(article);
-      platformEnum = Platform.XIAOHONGSHU;
-      newStatus = Status.PUBLISHED_XHS;
+      platformName = "xiaohongshu";
+      newStatus = "PUBLISHED_XHS";
     } else if (platform === "wechat") {
       result = await publishToWechat(article);
-      platformEnum = Platform.WECHAT;
-      newStatus = Status.PUBLISHED_WECHAT;
+      platformName = "wechat";
+      newStatus = "PUBLISHED_WECHAT";
     } else {
       return NextResponse.json(
         { success: false, error: "不支持的平台" },
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       data: {
         id: randomUUID(),
         articleId: article.id,
-        platform: platformEnum,
+        platform: platformName,
         result: JSON.stringify(result),
       },
     });
