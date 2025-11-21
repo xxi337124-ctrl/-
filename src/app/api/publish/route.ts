@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { Platform, Status } from "@prisma/client";
+
+// 平台类型
+type Platform = "xiaohongshu" | "wechat" | "all";
+// 状态类型
+type Status = "DRAFT" | "PUBLISHED";
 
 // 模拟小红书发布API
 async function publishToXiaohongshu(article: any): Promise<{ success: boolean; url?: string; error?: string }> {
