@@ -12,7 +12,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const fetchRecord = await prisma.articlesFetch.findUnique({
+    const fetchRecord = await prisma.article_fetches.findUnique({
       where: { id }
     });
 
