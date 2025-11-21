@@ -5,14 +5,26 @@ import { useSearchParams } from "next/navigation";
 import DashboardContent from "@/components/pages/Dashboard";
 import TopicAnalysisContent from "@/components/pages/TopicAnalysis";
 import PublishManagementContent from "@/components/pages/PublishManagement";
-import HistoryContent from "@/components/pages/History";
+import MaterialLibraryContent from "@/components/pages/MaterialLibrary";
 import SettingsContent from "@/components/pages/Settings";
 import SmartCreationHub from "@/components/pages/SmartCreationHub";
-import XiaohongshuRewrite from "@/components/pages/XiaohongshuRewrite";
+import XiaohongshuRewriteWrapper from "@/components/pages/XiaohongshuRewrite/Wrapper";
 import { GlobalToast } from "@/components/GlobalToast";
 import { useGlobalStore } from "@/lib/stores/globalStore";
 
-type ActiveTab = "dashboard" | "smart-creation" | "topic-analysis" | "publish-management" | "history" | "settings" | "xiaohongshu-rewrite";
+type ActiveTab = "dashboard" | "smart-creation" | "topic-analysis" | "publish-management" | "materials" | "settings" | "xiaohongshu-rewrite";
+
+// Loading fallback component
+function LoadingFallback() {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-center">
+        <div className="w-8 h-8 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-gray-600">加载中...</p>
+      </div>
+    </div>
+  );
+}
 
 // 提取使用 useSearchParams 的组件，需要用 Suspense 包裹
 function TabHandler({ onTabChange }: { onTabChange: (tab: ActiveTab) => void }) {
@@ -20,15 +32,22 @@ function TabHandler({ onTabChange }: { onTabChange: (tab: ActiveTab) => void }) 
 
   useEffect(() => {
     const tab = searchParams.get("tab") as ActiveTab;
+    console.log('TabHandler - 检测到tab参数:', tab, 'URL:', window.location.href);
 
     // 向后兼容: 重定向旧的content-creation路由到smart-creation
     if (tab === "content-creation" as string) {
+      console.log('TabHandler - 重定向到smart-creation');
       onTabChange("smart-creation");
       return;
     }
 
-    if (tab && ["dashboard", "smart-creation", "topic-analysis", "publish-management", "history", "settings", "xiaohongshu-rewrite"].includes(tab)) {
+    if (tab && ["dashboard", "smart-creation", "topic-analysis", "publish-management", "materials", "settings", "xiaohongshu-rewrite"].includes(tab)) {
+      console.log('TabHandler - 切换到标签页:', tab);
       onTabChange(tab);
+    } else if (tab === "history") {
+      // 向后兼容：重定向旧的history路由到materials
+      console.log('TabHandler - 重定向history到materials');
+      onTabChange("materials");
     }
   }, [searchParams, onTabChange]);
 
@@ -144,15 +163,15 @@ function HomeContent({ activeTab, setActiveTab }: { activeTab: ActiveTab; setAct
       description: "多平台统一管理",
     },
     {
-      id: "history" as ActiveTab,
-      name: "历史记录",
+      id: "materials" as ActiveTab,
+      name: "素材库",
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
         </svg>
       ),
-      color: "pink",
-      description: "查看历史分析记录",
+      color: "amber",
+      description: "收集的优质创作素材",
     },
     {
       id: "settings" as ActiveTab,
@@ -219,11 +238,27 @@ function HomeContent({ activeTab, setActiveTab }: { activeTab: ActiveTab; setAct
         iconText: isActive ? "text-white" : "text-gray-400",
         text: isActive ? "text-orange-600" : "text-gray-600 group-hover:text-orange-600",
       },
+      amber: {
+        bg: isActive ? "bg-amber-50" : "hover:bg-amber-50/50",
+        border: isActive ? "border-amber-500" : "border-transparent hover:border-amber-200",
+        icon: isActive ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-gray-100",
+        iconText: isActive ? "text-white" : "text-gray-400",
+        text: isActive ? "text-amber-600" : "text-gray-600 group-hover:text-amber-600",
+      },
     };
-    return colors[color as keyof typeof colors];
+
+    // 返回指定颜色或默认灰色
+    return colors[color as keyof typeof colors] || {
+      bg: isActive ? "bg-gray-50" : "hover:bg-gray-50/50",
+      border: isActive ? "border-gray-500" : "border-transparent hover:border-gray-200",
+      icon: isActive ? "bg-gradient-to-br from-gray-500 to-gray-600" : "bg-gray-100",
+      iconText: isActive ? "text-white" : "text-gray-400",
+      text: isActive ? "text-gray-600" : "text-gray-600 group-hover:text-gray-600",
+    };
   };
 
   const renderContent = () => {
+    console.log('renderContent - 当前activeTab:', activeTab);
     switch (activeTab) {
       case "dashboard":
         return <DashboardContent />;
@@ -231,12 +266,13 @@ function HomeContent({ activeTab, setActiveTab }: { activeTab: ActiveTab; setAct
         return <SmartCreationHub />;
       case "topic-analysis":
         return <TopicAnalysisContent />;
-      case "history":
-        return <HistoryContent />;
+      case "materials":
+        return <MaterialLibraryContent />;
       case "publish-management":
         return <PublishManagementContent />;
       case "xiaohongshu-rewrite":
-        return <XiaohongshuRewrite />;
+        console.log('renderContent - 渲染XiaohongshuRewrite组件');
+        return <XiaohongshuRewriteWrapper />;
       case "settings":
         return <SettingsContent />;
       default:

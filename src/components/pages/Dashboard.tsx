@@ -132,7 +132,7 @@ export default function DashboardPage() {
       title="数据概览中心"
       description="实时监控您的内容工厂数据表现"
       actions={
-        <Link href="/content-creation">
+        <Link href="/?tab=smart-creation">
           <button className={`px-6 py-3 bg-gradient-to-r ${colors.gradients.purple} text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2`}>
             <FiSend className="w-5 h-5" />
             新建创作

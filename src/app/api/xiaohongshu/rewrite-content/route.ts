@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * POST /api/xiaohongshu/rewrite-content
- * 文案二创 - 使用 Gemini 2.5 Pro 改写文案
+ * 文案二创 - 使用 Gemini 3 Pro 改写文案
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const customPrompt = promptSettings?.xiaohongshuTextPrompt;
 
-    // 调用 Gemini 2.5 Pro 进行文案二创
+    // 调用 Gemini 3 Pro 进行文案二创
     const rewrittenContent = await geminiClient.optimizeContent(originalContent, {
       platform: "xiaohongshu",
       style: style || "轻松活泼",

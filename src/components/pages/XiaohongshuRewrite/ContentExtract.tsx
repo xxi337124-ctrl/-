@@ -36,6 +36,9 @@ export default function ContentExtract({
     note_range: '不限' as '不限' | '10w+' | '1w+',
   });
 
+  // 筛选选项展开/折叠状态
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
   // 当 searchResults 变化时同步更新 notes
   useEffect(() => {
     if (searchResults.length > 0) {
@@ -128,144 +131,162 @@ export default function ContentExtract({
         {/* 筛选选项 - 仅关键词搜索时显示 */}
         {searchType === 'keyword' && (
           <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center gap-2 mb-2">
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                <h3 className="font-semibold text-gray-700">筛选选项</h3>
+              </div>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${filtersExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-              <h3 className="font-semibold text-gray-700">筛选选项</h3>
             </div>
 
-            {/* 排序方式 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">排序方式</label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  size="sm"
-                  variant={filters.sort === 'general' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, sort: 'general' })}
-                  className="text-sm"
-                >
-                  综合排序
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.sort === 'popularity_descending' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, sort: 'popularity_descending' })}
-                  className="text-sm"
-                >
-                  🔥 最热
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.sort === 'time_descending' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, sort: 'time_descending' })}
-                  className="text-sm"
-                >
-                  🕒 最新
-                </Button>
-              </div>
-            </div>
+            {/* 折叠内容 */}
+            {filtersExpanded && (
+              <div className="space-y-3 pt-2">
+                {/* 排序方式 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">排序方式</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    <Button
+                      size="sm"
+                      variant={filters.sort === 'general' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, sort: 'general' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      综合排序
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.sort === 'popularity_descending' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, sort: 'popularity_descending' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      🔥 最热
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.sort === 'time_descending' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, sort: 'time_descending' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      🕒 最新
+                    </Button>
+                  </div>
+                </div>
 
-            {/* 内容类型 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">内容类型</label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  size="sm"
-                  variant={filters.note_type === 'all' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_type: 'all' })}
-                  className="text-sm"
-                >
-                  全部
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.note_type === 'image' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_type: 'image' })}
-                  className="text-sm"
-                >
-                  📷 图文
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.note_type === 'video' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_type: 'video' })}
-                  className="text-sm"
-                >
-                  🎬 视频
-                </Button>
-              </div>
-            </div>
+                {/* 内容类型 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">内容类型</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    <Button
+                      size="sm"
+                      variant={filters.note_type === 'all' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_type: 'all' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      全部
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.note_type === 'image' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_type: 'image' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      📷 图文
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.note_type === 'video' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_type: 'video' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      🎬 视频
+                    </Button>
+                  </div>
+                </div>
 
-            {/* 发布时间 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">发布时间</label>
-              <div className="grid grid-cols-4 gap-2">
-                <Button
-                  size="sm"
-                  variant={filters.note_time === '不限' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_time: '不限' })}
-                  className="text-sm"
-                >
-                  不限
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.note_time === '近一周' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_time: '近一周' })}
-                  className="text-sm"
-                >
-                  近一周
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.note_time === '近一月' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_time: '近一月' })}
-                  className="text-sm"
-                >
-                  近一月
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.note_time === '近三月' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_time: '近三月' })}
-                  className="text-sm"
-                >
-                  近三月
-                </Button>
-              </div>
-            </div>
+                {/* 发布时间 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">发布时间</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    <Button
+                      size="sm"
+                      variant={filters.note_time === '不限' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_time: '不限' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      不限
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.note_time === '近一周' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_time: '近一周' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      近一周
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.note_time === '近一月' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_time: '近一月' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      近一月
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.note_time === '近三月' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_time: '近三月' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      近三月
+                    </Button>
+                  </div>
+                </div>
 
-            {/* 点赞范围 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">热度范围</label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  size="sm"
-                  variant={filters.note_range === '不限' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_range: '不限' })}
-                  className="text-sm"
-                >
-                  不限
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.note_range === '1w+' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_range: '1w+' })}
-                  className="text-sm"
-                >
-                  💖 1w+
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filters.note_range === '10w+' ? 'default' : 'outline'}
-                  onClick={() => setFilters({ ...filters, note_range: '10w+' })}
-                  className="text-sm"
-                >
-                  🔥 10w+
-                </Button>
+                {/* 点赞范围 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">热度范围</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    <Button
+                      size="sm"
+                      variant={filters.note_range === '不限' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_range: '不限' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      不限
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.note_range === '1w+' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_range: '1w+' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      💖 1w+
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={filters.note_range === '10w+' ? 'default' : 'outline'}
+                      onClick={() => setFilters({ ...filters, note_range: '10w+' })}
+                      className="text-sm whitespace-nowrap flex-shrink-0"
+                    >
+                      🔥 10w+
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

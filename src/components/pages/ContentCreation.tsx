@@ -414,7 +414,7 @@ export default function ContentCreationPage() {
       const data = await response.json();
       if (data.success) {
         alert("保存成功!");
-        router.push("/publish-management");
+        router.push("/?tab=publish-management");
       } else {
         alert("保存失败");
       }

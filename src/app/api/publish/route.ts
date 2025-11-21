@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Platform, Status } from "@prisma/client";
 
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
     // 3. 保存发布记录
     await prisma.publishes.create({
       data: {
+        id: randomUUID(),
         articleId: article.id,
         platform: platformEnum,
         result: JSON.stringify(result),

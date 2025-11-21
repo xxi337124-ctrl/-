@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * POST /api/xiaohongshu/analyze-image
- * 图片分析 - 使用 Gemini 2.5 Pro 分析图片并返回提示词
+ * 图片分析 - 使用 Gemini 3 Pro 分析图片并返回提示词
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const customAnalysisPrompt = promptSettings?.imageAnalysisPrompt;
 
-    // 调用 Gemini 2.5 Pro 分析图片，只返回提示词
+    // 调用 Gemini 3 Pro 分析图片，只返回提示词
     const prompt = await geminiClient.analyzeImageForPrompt(
       imageUrl,
       customAnalysisPrompt || undefined,

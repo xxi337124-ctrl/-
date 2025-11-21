@@ -1,8 +1,8 @@
 /**
  * 小红书内容处理器
  * 专门处理小红书内容的二创流程：
- * 1. 文案通过 Gemini 2.5 Pro 进行二创优化
- * 2. 图片通过 Gemini 2.5 Pro 分析并生成提示词
+ * 1. 文案通过 Gemini 3 Pro 进行二创优化
+ * 2. 图片通过 Gemini 3 Pro 分析并生成提示词
  * 3. 使用分析提示词 + 原图通过 Imagen 3 生成新图片
  */
 
@@ -35,7 +35,7 @@ export interface XiaohongshuProcessingOptions {
   progressCallback?: (progress: ProcessingProgress) => void;
   // 新增：文案二创选项
   optimizeContent?: boolean;         // 是否对文案进行二创优化
-  useGeminiForAnalysis?: boolean;    // 是否使用 Gemini 2.5 Pro 分析图片
+  useGeminiForAnalysis?: boolean;    // 是否使用 Gemini 3 Pro 分析图片
   useImagenForGeneration?: boolean;  // 是否使用 Imagen 3 生成图片
 }
 
@@ -257,7 +257,7 @@ export class XiaohongshuProcessor {
         currentPostTitle: post.title
       });
 
-      // 第一步：文案二创（使用 Gemini 2.5 Pro）
+      // 第一步：文案二创（使用 Gemini 3 Pro）
       let optimizedContentResult: { title: string; content: string } | undefined;
 
       if (optimizeContent) {
@@ -267,7 +267,7 @@ export class XiaohongshuProcessor {
           totalImages: post.images.length,
           processedImages: 0,
           status: 'analyzing',
-          message: '正在使用 Gemini 2.5 Pro 优化文案...',
+          message: '正在使用 Gemini 3 Pro 优化文案...',
           currentPostTitle: post.title
         });
 
@@ -426,7 +426,7 @@ export class XiaohongshuProcessor {
 
   /**
    * 为单张图片生成多个变体
-   * 第二步：使用 Gemini 2.5 Pro 分析图片并生成提示词
+   * 第二步：使用 Gemini 3 Pro 分析图片并生成提示词
    * 第三步：使用提示词 + 原图通过 Imagen 3 生成新图片
    */
   private async generateImageVariations(
@@ -445,12 +445,12 @@ export class XiaohongshuProcessor {
       contentBasedPrompt = this.generateContentBasedPrompt(contentAnalysis, preserveStyle, targetPlatform);
     }
 
-    // 第二步：使用 Gemini 2.5 Pro 分析图片
+    // 第二步：使用 Gemini 3 Pro 分析图片
     let geminiAnalysisPrompt = contentBasedPrompt;
 
     if (useGeminiForAnalysis) {
       try {
-        console.log(`🔍 使用 Gemini 2.5 Pro 分析图片: ${originalImage.slice(0, 80)}...`);
+        console.log(`🔍 使用 Gemini 3 Pro 分析图片: ${originalImage.slice(0, 80)}...`);
 
         // 获取用户配置的图片分析提示词
         const { prisma } = await import("@/lib/prisma");

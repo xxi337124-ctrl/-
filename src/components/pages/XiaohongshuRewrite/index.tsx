@@ -1,10 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import ContentExtract from './ContentExtract';
 import ContentView from './ContentView';
 import RewriteProcess from './RewriteProcess';
 import FinalResult from './FinalResult';
+
+// 简单的字符串哈希函数，用于生成稳定的ID
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
 
 export interface XhsNote {
   id: string;
@@ -32,6 +44,9 @@ export interface RewriteResult {
 type Step = 'extract' | 'view' | 'process' | 'result';
 
 export default function XiaohongshuRewrite() {
+  const searchParams = useSearchParams();
+  console.log('XiaohongshuRewrite - 组件初始化, searchParams:', searchParams.toString());
+
   const [currentStep, setCurrentStep] = useState<Step>('extract');
   const [selectedNote, setSelectedNote] = useState<XhsNote | null>(null);
   const [rewriteResult, setRewriteResult] = useState<RewriteResult | null>(null);
@@ -39,20 +54,30 @@ export default function XiaohongshuRewrite() {
   const [history, setHistory] = useState<XhsNote[]>([]);
   const [searchResults, setSearchResults] = useState<XhsNote[]>([]); // 保存搜索结果
 
-  // 加载历史记录
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      loadHistory();
-    }
-  }, []);
-
+  // 定义函数
   const loadHistory = () => {
     try {
       if (typeof window === 'undefined') return;
       const saved = localStorage.getItem('xiaohongshu_rewrite_history');
       if (saved) {
         const historyData = JSON.parse(saved);
-        setHistory(historyData);
+
+        // 去重：根据ID去重,保留最早的记录
+        const uniqueHistory = historyData.reduce((acc: XhsNote[], current: XhsNote) => {
+          const exists = acc.find(item => item.id === current.id);
+          if (!exists) {
+            acc.push(current);
+          }
+          return acc;
+        }, []);
+
+        // 如果去重后数量发生变化,更新localStorage
+        if (uniqueHistory.length !== historyData.length) {
+          console.log(`🔄 去重历史记录: ${historyData.length} -> ${uniqueHistory.length}`);
+          localStorage.setItem('xiaohongshu_rewrite_history', JSON.stringify(uniqueHistory));
+        }
+
+        setHistory(uniqueHistory);
       }
     } catch (error) {
       console.error('加载历史记录失败:', error);
@@ -64,7 +89,7 @@ export default function XiaohongshuRewrite() {
       if (typeof window === 'undefined') return;
       const saved = localStorage.getItem('xiaohongshu_rewrite_history');
       let historyData: XhsNote[] = saved ? JSON.parse(saved) : [];
-      
+
       // 检查是否已存在（根据ID）
       const exists = historyData.find(h => h.id === note.id);
       if (!exists) {
@@ -77,6 +102,84 @@ export default function XiaohongshuRewrite() {
       console.error('保存历史记录失败:', error);
     }
   };
+
+  // 处理URL参数，从素材库跳转过来
+  useEffect(() => {
+    const imagesParam = searchParams.get('images');
+    const imageUrl = searchParams.get('imageUrl'); // 兼容旧的单图参数
+    const content = searchParams.get('content');
+
+    console.log('URL参数处理:', { imagesParam, imageUrl, content: content?.substring(0, 50) });
+
+    // 只要有content就处理，images可选
+    if (content) {
+      // 从URL参数创建一个note对象
+      const lines = content.split('\n');
+      const title = lines[0] || '无标题';
+      const noteContent = lines.slice(2).join('\n') || content; // 跳过标题和空行
+
+      // 解析图片数组
+      let images: string[] = [];
+      try {
+        if (imagesParam) {
+          images = JSON.parse(imagesParam);
+        } else if (imageUrl) {
+          images = [imageUrl];
+        }
+      } catch (error) {
+        console.error('解析图片参数失败:', error);
+        images = imageUrl ? [imageUrl] : [];
+      }
+
+      // 使用内容和图片的哈希值生成稳定的ID，避免重复记录
+      const contentHash = simpleHash(content + JSON.stringify(images));
+      const stableId = `url-${contentHash}`;
+
+      const note: XhsNote = {
+        id: stableId,
+        title: title,
+        content: noteContent,
+        images: images,
+        likes: 0,
+        comments: 0,
+        author: '来自素材库',
+        url: ''
+      };
+
+      console.log('创建note对象:', note);
+      setSelectedNote(note);
+
+      // 直接保存到历史记录（使用稳定ID，避免重复）
+      try {
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('xiaohongshu_rewrite_history');
+          let historyData: XhsNote[] = saved ? JSON.parse(saved) : [];
+          const exists = historyData.find(h => h.id === note.id);
+          if (!exists) {
+            historyData = [note, ...historyData].slice(0, 20);
+            localStorage.setItem('xiaohongshu_rewrite_history', JSON.stringify(historyData));
+            setHistory(historyData);
+            console.log('✅ 保存到历史记录，稳定ID:', stableId);
+          } else {
+            console.log('⚠️ 该笔记已存在历史记录中，跳过保存:', stableId);
+          }
+        }
+      } catch (error) {
+        console.error('保存历史记录失败:', error);
+      }
+
+      setCurrentStep('view');
+      console.log('已设置步骤为view');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // 加载历史记录
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      loadHistory();
+    }
+  }, []);
 
   const handleNoteSelect = (note: XhsNote) => {
     setSelectedNote(note);
@@ -192,45 +295,64 @@ export default function XiaohongshuRewrite() {
 
         {/* 内容区域 */}
         <div className="bg-white rounded-2xl shadow-xl p-8" onClick={handleContainerClick}>
-          {currentStep === 'extract' && (
-            <ContentExtract
-              onNoteSelect={handleNoteSelect}
-              history={history}
-              onSelectFromHistory={handleNoteSelect}
-              searchResults={searchResults}
-              onSearchResults={handleSearchResults}
-            />
-          )}
+          {(() => {
+            console.log('渲染内容区域 - currentStep:', currentStep, 'selectedNote:', selectedNote);
 
-          {currentStep === 'view' && selectedNote && (
-            <ContentView
-              note={selectedNote}
-              onStartRewrite={handleStartRewrite}
-              onBack={handleBack}
-            />
-          )}
+            if (currentStep === 'extract') {
+              console.log('渲染 ContentExtract');
+              return (
+                <ContentExtract
+                  onNoteSelect={handleNoteSelect}
+                  history={history}
+                  onSelectFromHistory={handleNoteSelect}
+                  searchResults={searchResults}
+                  onSearchResults={handleSearchResults}
+                />
+              );
+            }
 
-          {currentStep === 'process' && selectedNote && (
-            <RewriteProcess
-              note={selectedNote}
-              onComplete={handleRewriteComplete}
-              onBack={handleBack}
-              onProcessingChange={setIsProcessing}
-            />
-          )}
+            if (currentStep === 'view' && selectedNote) {
+              console.log('渲染 ContentView，note:', selectedNote);
+              return (
+                <ContentView
+                  note={selectedNote}
+                  onStartRewrite={handleStartRewrite}
+                  onBack={handleBack}
+                />
+              );
+            }
 
-          {currentStep === 'result' && rewriteResult && selectedNote && (
-            <FinalResult
-              originalNote={selectedNote}
-              result={rewriteResult}
-              onBack={handleBack}
-              onRestart={() => {
-                setCurrentStep('extract');
-                setSelectedNote(null);
-                setRewriteResult(null);
-              }}
-            />
-          )}
+            if (currentStep === 'process' && selectedNote) {
+              console.log('渲染 RewriteProcess');
+              return (
+                <RewriteProcess
+                  note={selectedNote}
+                  onComplete={handleRewriteComplete}
+                  onBack={handleBack}
+                  onProcessingChange={setIsProcessing}
+                />
+              );
+            }
+
+            if (currentStep === 'result' && rewriteResult && selectedNote) {
+              console.log('渲染 FinalResult');
+              return (
+                <FinalResult
+                  originalNote={selectedNote}
+                  result={rewriteResult}
+                  onBack={handleBack}
+                  onRestart={() => {
+                    setCurrentStep('extract');
+                    setSelectedNote(null);
+                    setRewriteResult(null);
+                  }}
+                />
+              );
+            }
+
+            console.log('没有匹配的步骤，显示默认内容');
+            return <div>加载中...</div>;
+          })()}
         </div>
       </div>
     </div>

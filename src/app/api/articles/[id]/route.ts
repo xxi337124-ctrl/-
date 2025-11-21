@@ -11,7 +11,7 @@ export async function GET(
     const article = await prisma.articles.findUnique({
       where: { id },
       include: {
-        insight: true,
+        insights: true,
         publishes: true,
       },
     });
@@ -52,6 +52,7 @@ export async function PUT(
         content,
         status,
         wordCount,
+        updatedAt: new Date(),
       },
     });
 

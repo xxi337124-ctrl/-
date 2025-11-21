@@ -1,7 +1,7 @@
 /**
  * Google Gemini API 客户端封装（通过 OpenRouter）
- * 支持文案二创（Gemini 2.5 Pro）和图片分析（Gemini 2.5 Pro vision）
- * 以及图片生成（Gemini 2.5 Flash Image）
+ * 支持文案二创（Gemini 3 Pro）和图片分析（Gemini 3 Pro vision）
+ * 以及图片生成（Gemini 3 Pro）
  */
 
 interface GeminiConfig {
@@ -25,14 +25,14 @@ class GeminiClient {
 
   constructor() {
     this.config = {
-      apiKey: process.env.GEMINI_API_KEY || "",
-      baseUrl: process.env.GEMINI_API_BASE || "https://openrouter.ai/api/v1",
-      model: process.env.GEMINI_MODEL || "google/gemini-2.5-pro",
-      imageApiKey: process.env.GEMINI_IMAGE_API_KEY || process.env.GEMINI_API_KEY || "",
-      imageModel: process.env.GEMINI_IMAGE_MODEL || "google/gemini-2.5-flash-image",
+      apiKey: process.env.OPENROUTER_API_KEY || "",
+      baseUrl: "https://openrouter.ai/api/v1",
+      model: "google/gemini-3-pro-preview",
+      imageApiKey: process.env.OPENROUTER_API_KEY || "",
+      imageModel: "google/gemini-3-pro-preview",
     };
 
-    console.log("🔧 Gemini 配置:");
+    console.log("🔧 Gemini (OpenRouter) 配置:");
     console.log(`  - Base URL: ${this.config.baseUrl}`);
     console.log(`  - Text/Analysis Model: ${this.config.model}`);
     console.log(`  - Image Model: ${this.config.imageModel}`);
@@ -40,7 +40,7 @@ class GeminiClient {
     console.log(`  - Image API Key: ${this.config.imageApiKey ? '已配置' : '未配置'}`);
 
     if (!this.config.apiKey) {
-      console.warn("⚠️ GEMINI_API_KEY 未配置，Gemini 功能将无法使用");
+      console.warn("⚠️ OPENROUTER_API_KEY 未配置，Gemini 功能将无法使用");
     }
   }
 
@@ -52,7 +52,7 @@ class GeminiClient {
   }
 
   /**
-   * 文案二创优化 - 使用 Gemini 2.5 Pro（通过 OpenRouter）
+   * 文案二创优化 - 使用 Gemini 3 Pro（通过 OpenRouter）
    */
   async optimizeContent(
     originalContent: string,
@@ -76,7 +76,7 @@ class GeminiClient {
 
         const prompt = this.buildContentOptimizationPrompt(originalContent, platform, style);
 
-        console.log(`📝 发送文案优化请求到 Gemini 2.5 Pro (尝试 ${attempt}/${maxRetries})...`);
+        console.log(`📝 发送文案优化请求到 Gemini 3 Pro (尝试 ${attempt}/${maxRetries})...`);
 
         const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
           method: "POST",
@@ -127,7 +127,7 @@ class GeminiClient {
   }
 
   /**
-   * 图片分析 - 使用 Gemini 2.5 Pro vision（通过 OpenRouter）
+   * 图片分析 - 使用 Gemini 3 Pro vision（通过 OpenRouter）
    * 根据用户在设置中配置的提示词模板进行分析
    */
   async analyzeImage(
@@ -153,7 +153,7 @@ class GeminiClient {
 
         const prompt = customPrompt || this.buildDefaultImageAnalysisPrompt();
 
-        console.log(`🔍 发送图片分析请求到 Gemini 2.5 Pro (尝试 ${attempt}/${maxRetries})...`);
+        console.log(`🔍 发送图片分析请求到 Gemini 3 Pro (尝试 ${attempt}/${maxRetries})...`);
         console.log(`📝 使用提示词: ${prompt.slice(0, 100)}...`);
 
         // 使用 OpenRouter 的 vision 格式
@@ -195,6 +195,25 @@ class GeminiClient {
         }
 
         const data = await response.json();
+
+        // 添加详细日志以调试
+        console.log(`📊 [图片分析] Gemini API 原始响应:`, JSON.stringify(data).slice(0, 800));
+
+        if (!data.choices) {
+          console.error('❌ [图片分析] data.choices 不存在:', JSON.stringify(data).slice(0, 500));
+          throw new Error(`Gemini API 返回格式错误: data.choices 不存在 - ${JSON.stringify(data).slice(0, 200)}`);
+        }
+
+        if (!Array.isArray(data.choices) || data.choices.length === 0) {
+          console.error('❌ [图片分析] data.choices 不是数组或为空:', JSON.stringify(data).slice(0, 500));
+          throw new Error(`Gemini API 返回格式错误: data.choices 为空或非数组 - ${JSON.stringify(data).slice(0, 200)}`);
+        }
+
+        if (!data.choices[0]) {
+          console.error('❌ [图片分析] data.choices[0] 为 undefined:', JSON.stringify(data).slice(0, 500));
+          throw new Error(`Gemini API 返回格式错误: data.choices[0] 不存在 - ${JSON.stringify(data).slice(0, 200)}`);
+        }
+
         const text = data.choices[0]?.message?.content || "";
 
         if (!text || text.trim().length === 0) {
@@ -437,7 +456,7 @@ ${content}
   }
 
   /**
-   * 使用 Gemini 2.5 Flash Image 生成图片
+   * 使用 Gemini 3 Pro 生成图片
    * 输入：提示词 + 参考图片URL
    * 输出：生成的图片URL
    */
@@ -460,11 +479,11 @@ ${content}
           await this.sleep(waitTime);
         }
 
-        console.log(`🎨 使用 Gemini 2.5 Flash Image 生成图片...`);
+        console.log(`🎨 使用 Gemini 3 Pro 生成图片...`);
         console.log(`📝 提示词: ${prompt.slice(0, 100)}...`);
         console.log(`🖼️ 参考图片: ${referenceImageUrl.slice(0, 80)}...`);
 
-        // 使用 OpenRouter 调用 Gemini 2.5 Flash Image
+        // 使用 OpenRouter 调用 Gemini 3 Pro
         const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
           method: "POST",
           headers: {
@@ -503,8 +522,8 @@ ${content}
         }
 
         const data = await response.json();
-        
-        // Gemini 2.5 Flash Image 可能返回图片URL或base64
+
+        // Gemini 3 Pro 可能返回图片URL或base64
         // 需要根据实际API响应格式解析
         const imageUrl = this.parseImageGenerationResponse(data);
         

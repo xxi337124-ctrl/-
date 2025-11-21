@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { openaiClient } from "@/lib/openai";
 import { doubaoClient } from "@/lib/doubao-client";
@@ -288,8 +289,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. 创建任务记录
+    const taskId = randomUUID();
     const task = await prisma.creation_tasks.create({
-      data: taskData,
+      data: {
+        id: taskId,
+        ...taskData,
+        updatedAt: new Date(),
+      },
     });
 
     console.log(`📝 创建任务: ${task.id} (${mode || 'insight'}模式)`);
@@ -443,18 +449,18 @@ async function processCreationTask(taskId: string) {
     let images: string[] = [];
     let finalContent = content;
 
-    // 4. 生成图片 (使用SiliconFlow文生图 + Gemini 2.5 Pro生成提示词)
+    // 4. 生成图片 (使用SiliconFlow文生图 + Gemini 3 Pro生成提示词)
     if (siliconFlowClient.isConfigured()) {
       try {
         console.log("🎨 使用智能创作文生图流程...");
 
         await prisma.creation_tasks.update({
           where: { id: taskId },
-          data: { progress: 60, progressMessage: "正在使用Gemini 2.5 Pro分析文案生成图片提示词..." },
+          data: { progress: 60, progressMessage: "正在使用Gemini 3 Pro分析文案生成图片提示词..." },
         });
 
-        // 步骤1: 使用 Gemini 2.5 Pro 分析文案，生成图片提示词
-        console.log("📝 步骤1: Gemini 2.5 Pro分析文案并生成提示词...");
+        // 步骤1: 使用 Gemini 3 Pro 分析文案，生成图片提示词
+        console.log("📝 步骤1: Gemini 3 Pro分析文案并生成提示词...");
         const imagePromptsList = await generateImagePrompts(title, content, imageCount, task.platform);
         console.log(`✅ 生成了 ${imagePromptsList.length} 个高质量图片提示词`);
 
@@ -499,6 +505,7 @@ async function processCreationTask(taskId: string) {
     console.log("💾 步骤6: 保存文章到数据库...");
     const article = await prisma.articles.create({
       data: {
+        id: randomUUID(),
         title,
         content: finalContent,
         status: "DRAFT",
@@ -506,6 +513,7 @@ async function processCreationTask(taskId: string) {
         tags: JSON.stringify([keyword]),
         images: JSON.stringify(images),
         insightId: isDirectMode ? null : task.insightId, // direct模式不关联insight
+        updatedAt: new Date(),
       },
     });
 

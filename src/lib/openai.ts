@@ -36,7 +36,7 @@ class OpenRouterClient {
     this.config = {
       apiKey: process.env.OPENAI_API_KEY || "",
       baseUrl: process.env.OPENAI_API_BASE || "https://openrouter.ai/api/v1",
-      model: process.env.OPENAI_MODEL || "google/gemini-2.0-flash-exp:free",
+      model: process.env.OPENAI_MODEL || "google/gemini-3-pro-preview",
     };
 
     // 启动时输出配置信息(隐藏API Key)
@@ -67,6 +67,7 @@ class OpenRouterClient {
       maxTokens?: number;
       timeout?: number;
       maxRetries?: number;
+      enableReasoning?: boolean;
     } = {}
   ): Promise<{ content: string; usage: OpenAIResponse["usage"] }> {
     const {
@@ -74,6 +75,7 @@ class OpenRouterClient {
       maxTokens = 4096,
       timeout = 60000, // 60秒超时
       maxRetries = 3, // 最多重试3次
+      enableReasoning = true, // 默认启用 reasoning
     } = options;
 
     let lastError: Error | null = null;
@@ -85,7 +87,7 @@ class OpenRouterClient {
       try {
         // 如果是重试,先等待一段时间 (指数退避)
         if (attempt > 1) {
-          const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // 最多等10秒
+          const waitTime = Math.min(2000 * Math.pow(2, attempt - 1), 20000); // 最多等20秒
           console.log(`重试第 ${attempt}/${maxRetries} 次,等待 ${waitTime}ms...`);
           await this.sleep(waitTime);
         }
@@ -98,6 +100,18 @@ class OpenRouterClient {
           maxTokens,
         });
 
+        const requestBody: any = {
+          model: this.config.model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        };
+
+        // 如果启用 reasoning，添加到请求体
+        if (enableReasoning) {
+          requestBody.reasoning = { enabled: true };
+        }
+
         const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
           method: "POST",
           headers: {
@@ -106,12 +120,7 @@ class OpenRouterClient {
             "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
             "X-Title": "Content Factory",
           },
-          body: JSON.stringify({
-            model: this.config.model,
-            messages,
-            temperature,
-            max_tokens: maxTokens,
-          }),
+          body: JSON.stringify(requestBody),
           signal: controller.signal,
         });
 

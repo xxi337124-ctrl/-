@@ -233,7 +233,7 @@ export class ArticleGenerator {
     try {
       // 使用OpenRouter API
       const response = await openaiClient.chat.completions.create({
-        model: "google/gemini-2.0-flash-exp:free",
+        model: process.env.OPENAI_MODEL || "google/gemini-3-pro-preview",
         messages: [
           {
             role: "system",

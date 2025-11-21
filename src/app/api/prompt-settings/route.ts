@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -15,6 +16,7 @@ export async function GET() {
     if (!settings) {
       settings = await prisma.prompt_settings.create({
         data: {
+          id: randomUUID(),
           userId: 'default',
           textPrompt: '以专业但易懂的方式撰写，结合实际案例，语言自然流畅',
           wechatTextPrompt: '以专业正式的方式撰写，结构清晰，段落分明，适合深度阅读。使用数据和案例支撑观点，语言严谨但不失亲和力。',
@@ -32,6 +34,7 @@ export async function GET() {
           samplerName: 'DPM++ 2M Karras',
           steps: 25,
           seed: -1,
+          updatedAt: new Date(),
         }
       });
     }
@@ -96,8 +99,10 @@ export async function POST(request: NextRequest) {
         samplerName,
         steps,
         seed,
+        updatedAt: new Date(),
       },
       create: {
+        id: randomUUID(),
         userId: 'default',
         textPrompt: textPrompt || '以专业但易懂的方式撰写，结合实际案例，语言自然流畅',
         wechatTextPrompt: wechatTextPrompt || '以专业正式的方式撰写，结构清晰，段落分明，适合深度阅读。使用数据和案例支撑观点，语言严谨但不失亲和力。',
@@ -115,6 +120,7 @@ export async function POST(request: NextRequest) {
         samplerName: samplerName || 'DPM++ 2M Karras',
         steps: steps !== undefined ? steps : 25,
         seed: seed !== undefined ? seed : -1,
+        updatedAt: new Date(),
       }
     });
 

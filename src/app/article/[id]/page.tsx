@@ -3,12 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  FiSave, FiTrash2, FiArrowLeft, FiEye, FiEdit2,
+  FiSend, FiZap, FiClock, FiFileText, FiImage,
+  FiMaximize2, FiMinimize2
+} from "react-icons/fi";
 import { StatusLabels } from "@/types";
 import { Status } from "@prisma/client";
+import { colors, animations } from "@/lib/design";
 
 export default function ArticlePage({
   params
@@ -24,6 +27,7 @@ export default function ArticlePage({
   const [saving, setSaving] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [aiHelping, setAiHelping] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (resolvedParams.id !== "new") {
@@ -66,7 +70,7 @@ export default function ArticlePage({
           router.push(`/article/${data.data.id}`);
         } else {
           alert("保存成功!");
-          loadArticle(); // 重新加载以获取更新时间
+          loadArticle();
         }
       }
     } catch (error) {
@@ -77,7 +81,7 @@ export default function ArticlePage({
   };
 
   const handleDelete = async () => {
-    if (!confirm("确定要删除这篇文章吗?")) return;
+    if (!confirm("确定要删除这篇文章吗？此操作不可恢复！")) return;
 
     try {
       const response = await fetch(`/api/articles/${resolvedParams.id}`, {
@@ -86,7 +90,7 @@ export default function ArticlePage({
 
       if (response.ok) {
         alert("删除成功");
-        router.push("/publish-management");
+        router.push("/?tab=publish-management");
       }
     } catch (error) {
       alert("删除失败");
@@ -94,14 +98,11 @@ export default function ArticlePage({
   };
 
   const handlePublish = () => {
-    // 跳转到发布管理页面
-    router.push("/publish-management");
+    router.push("/?tab=publish-management");
   };
 
   const handleAIOptimizeTitle = async () => {
     setAiHelping(true);
-    // TODO: 调用AI优化标题
-    // 这里可以集成 contentOptimizationPrompts.rewriteTitle
     setTimeout(() => {
       alert("AI优化标题功能开发中");
       setAiHelping(false);
@@ -110,8 +111,6 @@ export default function ArticlePage({
 
   const handleAIPolishContent = async () => {
     setAiHelping(true);
-    // TODO: 调用AI润色内容
-    // 这里可以集成 contentOptimizationPrompts.polishContent
     setTimeout(() => {
       alert("AI润色内容功能开发中");
       setAiHelping(false);
@@ -119,149 +118,317 @@ export default function ArticlePage({
   };
 
   const wordCount = content.replace(/<[^>]*>/g, "").length;
+  const statusColor = {
+    DRAFT: "bg-gray-100 text-gray-700",
+    PENDING: "bg-orange-100 text-orange-700",
+    PUBLISHED_XHS: "bg-red-100 text-red-700",
+    PUBLISHED_WECHAT: "bg-green-100 text-green-700",
+    PUBLISHED_ALL: "bg-purple-100 text-purple-700",
+  }[status] || "bg-gray-100 text-gray-700";
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        {/* 头部操作栏 */}
-        <div className="flex items-center justify-between mb-8 pb-4 border-b bg-white px-6 py-4 rounded-lg shadow-sm">
-          <Button variant="ghost" onClick={() => router.back()}>
-            ← 返回列表
-          </Button>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setPreviewMode(!previewMode)}
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
+      {/* 顶部导航栏 */}
+      <motion.div
+        {...animations.fadeIn}
+        className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-200/50 shadow-sm"
+      >
+        <div className="mx-auto max-w-7xl px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* 左侧 - 返回按钮 */}
+            <button
+              onClick={() => router.back()}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
             >
-              {previewMode ? "编辑" : "预览"}
-            </Button>
-            <Button variant="secondary" onClick={handleSave} disabled={saving}>
-              {saving ? "保存中..." : "保存"}
-            </Button>
-            {resolvedParams.id !== "new" && (
-              <Button variant="destructive" onClick={handleDelete}>
-                删除
-              </Button>
-            )}
-            <Button onClick={handlePublish}>发布</Button>
-          </div>
-        </div>
+              <FiArrowLeft className="w-5 h-5" />
+              <span className="font-medium">返回</span>
+            </button>
 
-        {!previewMode ? (
-          <>
-            {/* 编辑模式 */}
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              {/* 文章标题 */}
-              <div className="mb-6 relative">
-                <Input
-                  placeholder="文章标题"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="text-3xl font-semibold border-0 px-0 focus-visible:ring-0 h-auto py-2"
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleAIOptimizeTitle}
-                  disabled={aiHelping}
-                  className="absolute right-0 top-2"
-                >
-                  ✨ AI优化标题
-                </Button>
+            {/* 中间 - 状态和字数 */}
+            <div className="flex items-center gap-4">
+              <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${statusColor}`}>
+                {StatusLabels[status]}
               </div>
-
-              {/* 文章元信息 */}
-              <div className="flex items-center gap-4 mb-8 text-sm text-gray-500">
-                <div className="flex items-center gap-2">
-                  <span>状态:</span>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as Status)}
-                    className="border border-input rounded px-2 py-1"
-                  >
-                    {Object.entries(StatusLabels).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <FiFileText className="w-4 h-4" />
+                <span className="font-medium">{wordCount}</span>
+                <span>字</span>
+              </div>
+              {article && (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <FiClock className="w-4 h-4" />
+                  <span>{new Date(article.updatedAt).toLocaleString("zh-CN")}</span>
                 </div>
-                <span>{wordCount} 字</span>
-                {article && (
+              )}
+            </div>
+
+            {/* 右侧 - 操作按钮 */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPreviewMode(!previewMode)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  previewMode
+                    ? `bg-gradient-to-r ${colors.gradients.purple} text-white shadow-md`
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {previewMode ? (
                   <>
-                    <span>创建: {new Date(article.createdAt).toLocaleString("zh-CN")}</span>
-                    <span>更新: {new Date(article.updatedAt).toLocaleString("zh-CN")}</span>
+                    <FiEdit2 className="w-4 h-4" />
+                    <span>编辑</span>
+                  </>
+                ) : (
+                  <>
+                    <FiEye className="w-4 h-4" />
+                    <span>预览</span>
                   </>
                 )}
-              </div>
+              </button>
 
-              <div className="h-px bg-border mb-8" />
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className={`flex items-center gap-2 px-4 py-2 bg-gradient-to-r ${colors.gradients.blue} text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50`}
+              >
+                <FiSave className="w-4 h-4" />
+                <span>{saving ? "保存中..." : "保存"}</span>
+              </button>
 
-              {/* AI辅助工具栏 */}
-              <div className="mb-4 flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAIPolishContent}
-                  disabled={aiHelping}
+              {resolvedParams.id !== "new" && (
+                <button
+                  onClick={handleDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 hover:shadow-lg transition-all"
                 >
-                  ✨ AI润色
-                </Button>
-                <Button variant="outline" size="sm" disabled>
-                  ✨ AI扩写
-                </Button>
-                <Button variant="outline" size="sm" disabled>
-                  ✨ AI缩写
-                </Button>
-              </div>
+                  <FiTrash2 className="w-4 h-4" />
+                  <span>删除</span>
+                </button>
+              )}
 
-              {/* 文章内容编辑器 */}
-              <Card className="p-6">
-                <textarea
-                  placeholder="开始输入内容... 支持HTML格式"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="w-full min-h-[600px] border-0 focus:outline-none resize-none text-base leading-relaxed font-mono"
-                />
-              </Card>
-
-              {/* 底部操作栏 */}
-              <div className="mt-8 flex items-center justify-between">
-                <div className="text-sm text-gray-500">
-                  提示: 内容使用HTML格式编写
-                </div>
-                <div className="flex gap-3">
-                  <Button variant="secondary" onClick={handleSave} disabled={saving}>
-                    {saving ? "保存中..." : "保存草稿"}
-                  </Button>
-                  <Button onClick={handlePublish}>发布到平台</Button>
-                </div>
-              </div>
+              <button
+                onClick={handlePublish}
+                className={`flex items-center gap-2 px-4 py-2 bg-gradient-to-r ${colors.gradients.purple} text-white rounded-lg hover:shadow-lg transition-all`}
+              >
+                <FiSend className="w-4 h-4" />
+                <span>发布</span>
+              </button>
             </div>
-          </>
-        ) : (
-          <>
-            {/* 预览模式 */}
-            <div className="bg-white rounded-lg shadow-sm p-12">
-              <div className="max-w-3xl mx-auto">
-                <h1 className="text-4xl font-bold mb-4">{title || "未命名文章"}</h1>
+          </div>
+        </div>
+      </motion.div>
 
-                <div className="flex items-center gap-4 mb-8 text-sm text-gray-500 pb-4 border-b">
-                  <Badge>{StatusLabels[status]}</Badge>
-                  <span>{wordCount} 字</span>
+      {/* 主内容区域 */}
+      <div className="mx-auto max-w-7xl px-6 py-8">
+        <AnimatePresence mode="wait">
+          {!previewMode ? (
+            /* 编辑模式 */
+            <motion.div
+              key="edit"
+              {...animations.fadeIn}
+              className="space-y-6"
+            >
+              {/* 标题编辑卡片 */}
+              <motion.div
+                {...animations.slideUp}
+                className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200/50"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <input
+                    type="text"
+                    placeholder="在此输入文章标题..."
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="flex-1 text-4xl font-bold text-gray-900 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 bg-transparent"
+                  />
+                  <button
+                    onClick={handleAIOptimizeTitle}
+                    disabled={aiHelping}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <FiZap className="w-4 h-4" />
+                    <span>AI优化</span>
+                  </button>
+                </div>
+
+                {/* 文章元信息 */}
+                <div className="mt-6 pt-6 border-t border-gray-100 flex items-center gap-6">
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-gray-700">文章状态:</label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as Status)}
+                      className={`px-3 py-1.5 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none ${statusColor}`}
+                    >
+                      {Object.entries(StatusLabels).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   {article && (
-                    <span>{new Date(article.updatedAt).toLocaleString("zh-CN")}</span>
+                    <>
+                      <div className="text-sm text-gray-500">
+                        创建于 {new Date(article.createdAt).toLocaleString("zh-CN")}
+                      </div>
+                    </>
                   )}
                 </div>
+              </motion.div>
 
-                <div
-                  className="prose prose-lg max-w-none"
-                  dangerouslySetInnerHTML={{ __html: content || "<p>暂无内容</p>" }}
+              {/* AI工具栏 */}
+              <motion.div
+                {...animations.slideUp}
+                transition={{ delay: 0.1 }}
+                className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 rounded-2xl p-6 border border-purple-200/50"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                    <FiZap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">AI 写作助手</h3>
+                    <p className="text-sm text-gray-600">让AI帮你优化内容，提升创作效率</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleAIPolishContent}
+                    disabled={aiHelping}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-purple-200 text-purple-700 rounded-lg hover:border-purple-400 hover:shadow-md transition-all disabled:opacity-50"
+                  >
+                    <FiZap className="w-4 h-4" />
+                    <span className="font-medium">AI润色</span>
+                  </button>
+                  <button
+                    disabled
+                    className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
+                  >
+                    <FiZap className="w-4 h-4" />
+                    <span className="font-medium">AI扩写</span>
+                  </button>
+                  <button
+                    disabled
+                    className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
+                  >
+                    <FiZap className="w-4 h-4" />
+                    <span className="font-medium">AI缩写</span>
+                  </button>
+                  <button
+                    disabled
+                    className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-200 text-gray-400 rounded-lg cursor-not-allowed"
+                  >
+                    <FiImage className="w-4 h-4" />
+                    <span className="font-medium">生成配图</span>
+                  </button>
+                </div>
+              </motion.div>
+
+              {/* 内容编辑器 */}
+              <motion.div
+                {...animations.slideUp}
+                transition={{ delay: 0.2 }}
+                className={`bg-white rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden ${
+                  isFullscreen ? "fixed inset-4 z-50" : ""
+                }`}
+              >
+                <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <FiEdit2 className="w-4 h-4" />
+                    <span className="font-medium">正文编辑器</span>
+                    <span className="text-gray-400">支持 HTML 格式</span>
+                  </div>
+                  <button
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    className="p-2 hover:bg-gray-200 rounded-lg transition-all"
+                  >
+                    {isFullscreen ? (
+                      <FiMinimize2 className="w-4 h-4 text-gray-600" />
+                    ) : (
+                      <FiMaximize2 className="w-4 h-4 text-gray-600" />
+                    )}
+                  </button>
+                </div>
+
+                <textarea
+                  placeholder="开始创作你的内容... 支持 HTML 格式编写"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className={`w-full p-8 focus:outline-none resize-none text-base leading-relaxed font-mono text-gray-800 ${
+                    isFullscreen ? "h-[calc(100vh-200px)]" : "min-h-[600px]"
+                  }`}
+                  style={{
+                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+                  }}
                 />
-              </div>
-            </div>
-          </>
-        )}
+              </motion.div>
+
+              {/* 底部提示 */}
+              <motion.div
+                {...animations.fadeIn}
+                transition={{ delay: 0.3 }}
+                className="flex items-center justify-between text-sm text-gray-500 px-4"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span>自动保存已启用</span>
+                </div>
+                <div>
+                  使用 HTML 格式编写，支持丰富的样式和排版
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : (
+            /* 预览模式 */
+            <motion.div
+              key="preview"
+              {...animations.fadeIn}
+              className="mx-auto max-w-4xl"
+            >
+              <motion.div
+                {...animations.slideUp}
+                className="bg-white rounded-2xl shadow-xl p-12 border border-gray-200/50"
+              >
+                {/* 文章头部 */}
+                <div className="border-b border-gray-200 pb-8 mb-8">
+                  <h1 className="text-5xl font-bold text-gray-900 mb-6 leading-tight">
+                    {title || "未命名文章"}
+                  </h1>
+
+                  <div className="flex items-center gap-6 text-sm text-gray-600">
+                    <div className={`px-3 py-1.5 rounded-full ${statusColor} font-medium`}>
+                      {StatusLabels[status]}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FiFileText className="w-4 h-4" />
+                      <span className="font-medium">{wordCount} 字</span>
+                    </div>
+                    {article && (
+                      <div className="flex items-center gap-2">
+                        <FiClock className="w-4 h-4" />
+                        <span>{new Date(article.updatedAt).toLocaleString("zh-CN")}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 文章内容 */}
+                <div
+                  className="prose prose-lg prose-purple max-w-none prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl prose-p:text-gray-700 prose-p:leading-relaxed prose-a:text-purple-600 prose-a:no-underline hover:prose-a:underline prose-strong:text-gray-900 prose-code:text-purple-600 prose-code:bg-purple-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-img:rounded-xl prose-img:shadow-lg"
+                  dangerouslySetInnerHTML={{
+                    __html: content || `
+                      <div class="text-center py-12 text-gray-400">
+                        <p class="text-xl">暂无内容</p>
+                        <p class="text-sm mt-2">开始编辑以查看预览</p>
+                      </div>
+                    `
+                  }}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

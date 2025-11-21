@@ -98,14 +98,14 @@ export default function RewriteProcess({
   const handleRewriteContent = async () => {
     setCurrentStep('rewrite');
     setProgress(10);
-    setProgressMessage('正在使用 Gemini 2.5 Pro 进行文案二创...');
+    setProgressMessage('正在使用 Gemini 3 Pro 进行文案二创...');
     setError(null);
 
     // 更新全局store
     updateTask({
       status: 'PROCESSING',
       progress: 10,
-      progressMessage: '正在使用 Gemini 2.5 Pro 进行文案二创...',
+      progressMessage: '正在使用 Gemini 3 Pro 进行文案二创...',
       currentStep: 'rewrite',
     });
 
@@ -126,25 +126,21 @@ export default function RewriteProcess({
       }
 
       setRewrittenContent(data.data.rewrittenContent);
-      setProgress(30);
-      setProgressMessage('文案二创完成！');
+      setProgress(100);
+      setProgressMessage('文案二创完成！正在跳转到结果页面...');
 
       // 更新全局store
       updateTask({
-        progress: 30,
+        progress: 100,
         progressMessage: '文案二创完成！',
         rewrittenContent: data.data.rewrittenContent,
       });
 
-      // 如果有图片，继续分析图片
-      if (note.images.length > 0) {
-        setTimeout(() => {
-          handleAnalyzeImages();
-        }, 1000);
-      } else {
-        // 没有图片，直接完成
+      // 文案生成完成后，直接跳转到结果页面
+      // 图片将在结果页面自动逐个生成
+      setTimeout(() => {
         handleComplete();
-      }
+      }, 1000);
     } catch (error: any) {
       console.error('文案二创失败:', error);
       setError(error.message || '文案二创失败，请稍后重试');
@@ -165,7 +161,7 @@ export default function RewriteProcess({
     setProgressMessage(
       note.images.length > MAX_IMAGES
         ? `原文有 ${note.images.length} 张图片，处理前 ${imageCount} 张...`
-        : `正在分析 ${imageCount} 张图片...`
+        : `正在使用 Gemini 3 Pro 分析 ${imageCount} 张图片...`
     );
     setError(null);
 
@@ -175,41 +171,56 @@ export default function RewriteProcess({
       progressMessage:
         note.images.length > MAX_IMAGES
           ? `原文有 ${note.images.length} 张图片，处理前 ${imageCount} 张...`
-          : `正在分析 ${imageCount} 张图片...`,
+          : `正在使用 Gemini 3 Pro 分析 ${imageCount} 张图片...`,
       currentStep: 'analyze',
     });
 
     try {
-      const response = await fetch('/api/xiaohongshu/analyze-image', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrls: imagesToProcess,
-        }),
-      });
+      // 每次分析一张图片，实时更新进度
+      const prompts: string[] = [];
 
-      const data = await response.json();
+      for (let i = 0; i < imagesToProcess.length; i++) {
+        const currentProgress = 40 + Math.floor((i / imageCount) * 20);
+        setProgress(currentProgress);
+        setProgressMessage(`正在分析第 ${i + 1}/${imageCount} 张图片...`);
+        updateTask({
+          progress: currentProgress,
+          progressMessage: `正在分析第 ${i + 1}/${imageCount} 张图片...`,
+        });
 
-      if (!data.success) {
-        throw new Error(data.error || '图片分析失败');
+        const response = await fetch('/api/xiaohongshu/analyze-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: imagesToProcess[i],
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.data.prompt) {
+          prompts.push(data.data.prompt);
+        } else {
+          console.warn(`图片 ${i + 1} 分析失败`);
+        }
       }
 
-      const prompts = data.data.prompts.filter((p: string) => p.length > 0);
-      setImagePrompts(prompts);
+      const validPrompts = prompts.filter((p: string) => p.length > 0);
+      setImagePrompts(validPrompts);
       setProgress(60);
-      setProgressMessage(`图片分析完成，获得 ${prompts.length} 个提示词！`);
+      setProgressMessage(`图片分析完成，获得 ${validPrompts.length} 个提示词！`);
 
       // 更新全局store
       updateTask({
         progress: 60,
-        progressMessage: `图片分析完成，获得 ${prompts.length} 个提示词！`,
-        imagePrompts: prompts,
+        progressMessage: `图片分析完成，获得 ${validPrompts.length} 个提示词！`,
+        imagePrompts: validPrompts,
       });
 
       // 继续生成图片
-      if (prompts.length > 0) {
+      if (validPrompts.length > 0) {
         setTimeout(() => {
-          handleGenerateImages(prompts, imagesToProcess);
+          handleGenerateImages(validPrompts, imagesToProcess.slice(0, validPrompts.length));
         }, 1000);
       } else {
         // 没有有效提示词，直接完成
@@ -226,13 +237,13 @@ export default function RewriteProcess({
   const handleGenerateImages = async (prompts: string[], referenceImages: string[]) => {
     setCurrentStep('generate');
     setProgress(70);
-    setProgressMessage(`正在生成 ${prompts.length} 张新图片...`);
+    setProgressMessage(`正在使用豆包 SeeDream 4.0 生成 ${prompts.length} 张新图片...`);
     setError(null);
 
     // 更新全局store
     updateTask({
       progress: 70,
-      progressMessage: `正在生成 ${prompts.length} 张新图片...`,
+      progressMessage: `正在使用豆包 SeeDream 4.0 生成 ${prompts.length} 张新图片...`,
       currentStep: 'generate',
     });
 
@@ -240,32 +251,68 @@ export default function RewriteProcess({
       // 确保提示词和原图数量匹配
       const validPrompts = prompts.slice(0, referenceImages.length);
       const validReferenceImages = referenceImages.slice(0, prompts.length);
+      const totalImages = Math.min(validPrompts.length, validReferenceImages.length);
 
-      const response = await fetch('/api/xiaohongshu/generate-image', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompts: validPrompts,
-          referenceImageUrls: validReferenceImages,
-        }),
-      });
+      // 先清空已生成的图片数组
+      setGeneratedImages([]);
+      const images: string[] = [];
 
-      const data = await response.json();
+      // 逐个生成图片，实时更新进度
+      for (let i = 0; i < totalImages; i++) {
+        const currentProgress = 70 + Math.floor((i / totalImages) * 30);
+        setProgress(currentProgress);
+        setProgressMessage(`正在生成第 ${i + 1}/${totalImages} 张图片...`);
+        updateTask({
+          progress: currentProgress,
+          progressMessage: `正在生成第 ${i + 1}/${totalImages} 张图片...`,
+        });
 
-      if (!data.success) {
-        throw new Error(data.error || '图片生成失败');
+        try {
+          const response = await fetch('/api/xiaohongshu/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: validPrompts[i],
+              referenceImageUrl: validReferenceImages[i],
+            }),
+          });
+
+          const data = await response.json();
+
+          if (data.success && data.data.generatedImageUrl) {
+            const newImageUrl = data.data.generatedImageUrl;
+            images.push(newImageUrl);
+
+            // 🔥 关键改动：每成功生成一张图片就立即更新状态，触发UI刷新
+            setGeneratedImages([...images]);
+
+            // 同时更新全局 store，让其他组件也能看到实时进度
+            updateTask({
+              progress: currentProgress,
+              progressMessage: `已生成 ${images.length}/${totalImages} 张图片`,
+              generatedImages: [...images],
+            });
+
+            console.log(`✅ 第 ${i + 1} 张图片生成成功，已实时显示`);
+          } else {
+            console.warn(`⚠️ 图片 ${i + 1} 生成失败，跳过`);
+          }
+        } catch (error) {
+          console.error(`❌ 图片 ${i + 1} 生成异常:`, error);
+        }
       }
 
-      const images = data.data.generatedImageUrls.filter((url: string) => url.length > 0);
-      setGeneratedImages(images);
+      const validImages = images.filter((url: string) => url.length > 0);
+      // 最后再更新一次，确保状态一致
+      setGeneratedImages(validImages);
       setProgress(100);
-      setProgressMessage('图片生成完成！');
+      setProgressMessage(`图片生成完成！成功生成 ${validImages.length}/${totalImages} 张图片`);
 
       // 更新全局store
       updateTask({
         progress: 100,
-        progressMessage: '图片生成完成！',
-        generatedImages: images,
+        progressMessage: `图片生成完成！成功生成 ${validImages.length}/${totalImages} 张图片`,
+        generatedImages: validImages,
       });
 
       setTimeout(() => {
@@ -282,17 +329,17 @@ export default function RewriteProcess({
   const handleComplete = () => {
     setCurrentStep('complete');
     setProgress(100);
-    setProgressMessage('二创完成！');
+    setProgressMessage('跳转到结果页面...');
 
     const result: RewriteResult = {
       original: {
         content: note.content,
-        images: note.images,
+        images: note.images,  // 传递原图列表
       },
       rewritten: {
         content: rewrittenContent,
-        images: generatedImages,
-        imagePrompts: imagePrompts,
+        images: [],  // 🔥 空数组！图片将在结果页面生成
+        imagePrompts: [],  // 🔥 空数组！
       },
     };
 
@@ -307,9 +354,9 @@ export default function RewriteProcess({
   const getStepInfo = () => {
     switch (currentStep) {
       case 'rewrite':
-        return { icon: '📝', title: '文案二创', description: '使用 Gemini 2.5 Pro 改写文案' };
+        return { icon: '📝', title: '文案二创', description: '使用 Gemini 3 Pro 改写文案' };
       case 'analyze':
-        return { icon: '🔍', title: '图片分析', description: '使用 Gemini 2.5 Pro 分析图片并生成提示词' };
+        return { icon: '🔍', title: '图片分析', description: '使用 Gemini 3 Pro 分析图片并生成提示词' };
       case 'generate':
         return { icon: '🎨', title: '图片生成', description: '使用豆包 SeeDream 4.0 生成新图片（最多10张）' };
       case 'complete':

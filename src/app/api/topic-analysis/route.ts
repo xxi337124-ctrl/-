@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { calculateInteractionRate } from "@/lib/utils";
 import { openRouterClient } from "@/lib/openai";
@@ -347,7 +348,8 @@ export async function POST(request: NextRequest) {
       platform = 'wechat',  // 默认为公众号
       searchType = 'keyword',  // 默认为关键词搜索
       query,
-      keyword  // 兼容旧版本
+      keyword,  // 兼容旧版本
+      skipInsights = false  // 是否跳过洞察生成，直接返回文章列表
     } = body;
 
     const searchQuery = query || keyword;
@@ -359,7 +361,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`平台: ${platform}, 搜索类型: ${searchType}, 搜索内容: ${searchQuery}`);
+    console.log(`平台: ${platform}, 搜索类型: ${searchType}, 搜索内容: ${searchQuery}, 跳过洞察: ${skipInsights}`);
 
     // 1. 根据平台和搜索类型获取文章数据
     let articles: ArticleData[];
@@ -367,7 +369,7 @@ export async function POST(request: NextRequest) {
     if (platform === 'xiaohongshu') {
       // 小红书平台 - 使用fetch接口
       const { searchXhsByKeyword, searchXhsByUserId } = await import('@/lib/xiaohongshu-client');
-      
+
       if (searchType === 'account') {
         console.log(`按小红书用户ID获取笔记: ${searchQuery}`);
         const result = await searchXhsByUserId(searchQuery);
@@ -419,6 +421,25 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
+    // 🔥 如果设置了skipInsights，直接返回文章列表，不生成洞察
+    if (skipInsights) {
+      const sortedArticles = articles.sort((a, b) => b.likes - a.likes);
+
+      console.log(`✅ 跳过洞察生成，直接返回 ${articles.length} 篇文章`);
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          articles: sortedArticles,
+          total: sortedArticles.length,
+          searchQuery,
+          platform,
+          searchType,
+        },
+      });
+    }
+
+    // 原有的AI洞察生成逻辑（当skipInsights=false时执行）
     // 2. 选取TOP 5文章进行AI分析
     const topArticles = articles
       .sort((a, b) => b.likes - a.likes)
@@ -441,7 +462,7 @@ export async function POST(request: NextRequest) {
 
       // 添加延迟避免速率限制 (除了最后一个)
       if (i < topArticles.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 等待5秒
       }
     }
 
@@ -507,6 +528,7 @@ export async function POST(request: NextRequest) {
     // 7. 保存到数据库
     const insight = await prisma.insights.create({
       data: {
+        id: randomUUID(),
         keyword: searchQuery,
         searchType: searchType,
         totalArticles: articles.length,

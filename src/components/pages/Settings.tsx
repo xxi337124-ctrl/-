@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiSave, FiRefreshCw, FiMessageSquare, FiImage, FiSearch, FiAlertCircle } from "react-icons/fi";
+import { FiSave, FiRefreshCw, FiMessageSquare, FiImage, FiSearch, FiAlertCircle, FiKey, FiEye, FiEyeOff, FiCheckCircle, FiXCircle, FiExternalLink } from "react-icons/fi";
 import { PageContainer, Section } from "@/components/common/Layout";
 import { colors, animations } from "@/lib/design";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ApiKeysManager from "@/lib/apiKeysManager";
 
-type TabType = 'wechat' | 'xiaohongshu' | 'insight' | 'xhs-rewrite';
+type TabType = 'api-keys' | 'wechat' | 'xiaohongshu' | 'insight' | 'xhs-rewrite';
 
 interface Settings {
   textPrompt: string;
@@ -22,7 +23,7 @@ interface Settings {
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('wechat');
+  const [activeTab, setActiveTab] = useState<TabType>('api-keys');
   const [settings, setSettings] = useState<Settings>({
     textPrompt: '',
     wechatTextPrompt: '',
@@ -31,9 +32,32 @@ export default function SettingsPage() {
     imageAnalysisPrompt: '',
   });
 
+  // API Keys state
+  const [apiKeys, setApiKeys] = useState({
+    openrouterKey: '',
+    siliconflowKey: '',
+    doubaoKey: '',
+    xhsCookie: '',
+  });
+  const [showKeys, setShowKeys] = useState({
+    openrouterKey: false,
+    siliconflowKey: false,
+    doubaoKey: false,
+    xhsCookie: false,
+  });
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
   useEffect(() => {
     loadSettings();
+    loadApiKeys();
   }, []);
+
+  const loadApiKeys = () => {
+    const keys = ApiKeysManager.getKeys();
+    if (keys) {
+      setApiKeys(keys);
+    }
+  };
 
   const loadSettings = async () => {
     setLoading(true);
@@ -80,7 +104,40 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveApiKeys = () => {
+    try {
+      ApiKeysManager.saveKeys(apiKeys);
+      setApiKeySaved(true);
+      setTimeout(() => setApiKeySaved(false), 3000);
+      alert('API Keys 保存成功! ✅');
+    } catch (error: any) {
+      console.error('保存 API Keys 失败:', error);
+      alert(`保存失败: ${error.message}`);
+    }
+  };
+
+  const handleClearApiKeys = () => {
+    if (confirm('确定要清除所有 API Keys 吗？')) {
+      ApiKeysManager.clearKeys();
+      setApiKeys({
+        openrouterKey: '',
+        siliconflowKey: '',
+        doubaoKey: '',
+        xhsCookie: '',
+      });
+      alert('API Keys 已清除');
+    }
+  };
+
+  const toggleShowKey = (key: keyof typeof showKeys) => {
+    setShowKeys(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   const tabs = [
+    { id: 'api-keys' as const, label: 'API 密钥', icon: '🔑', color: 'blue' },
     { id: 'wechat' as const, label: '公众号文案', icon: '📱', color: 'green' },
     { id: 'xiaohongshu' as const, label: '小红书文案', icon: '📕', color: 'red' },
     { id: 'xhs-rewrite' as const, label: '小红书二创', icon: '✨', color: 'pink' },
@@ -147,6 +204,234 @@ export default function SettingsPage() {
           </div>
 
           <AnimatePresence mode="wait">
+            {/* API 密钥配置 */}
+            {activeTab === 'api-keys' && (
+              <motion.div
+                key="api-keys"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-6 rounded-xl">
+                  <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2 text-lg">
+                    <FiKey className="w-6 h-6" />
+                    API 密钥配置
+                  </h3>
+                  <p className="text-sm text-blue-800 leading-relaxed mb-3">
+                    配置你的 API 密钥以使用内容工厂的各项功能。密钥将安全存储在浏览器本地，不会上传到服务器。
+                  </p>
+                  <div className="bg-white bg-opacity-60 p-4 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <FiAlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-blue-900">
+                        <strong>隐私保护：</strong>所有 API 密钥仅存储在你的浏览器本地（localStorage），不会发送到任何服务器。每次使用功能时，密钥会从本地读取并直接调用相应的 API 服务。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* OpenRouter API Key */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="text-xl">🤖</span>
+                      OpenRouter API Key
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <a
+                      href="https://openrouter.ai/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline"
+                    >
+                      获取密钥 <FiExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showKeys.openrouterKey ? "text" : "password"}
+                      value={apiKeys.openrouterKey}
+                      onChange={(e) => setApiKeys({...apiKeys, openrouterKey: e.target.value})}
+                      placeholder="sk-or-v1-xxxxxxxxxxxxx"
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowKey('openrouterKey')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showKeys.openrouterKey ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    用于：文案生成（Gemini 3 Pro）、内容分析、图片提示词生成
+                  </p>
+                </div>
+
+                {/* SiliconFlow API Key */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="text-xl">🎨</span>
+                      SiliconFlow API Key
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <a
+                      href="https://cloud.siliconflow.cn/account/ak"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline"
+                    >
+                      获取密钥 <FiExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showKeys.siliconflowKey ? "text" : "password"}
+                      value={apiKeys.siliconflowKey}
+                      onChange={(e) => setApiKeys({...apiKeys, siliconflowKey: e.target.value})}
+                      placeholder="sk-xxxxxxxxxxxxx"
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowKey('siliconflowKey')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showKeys.siliconflowKey ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    用于：智能创作的文生图功能
+                  </p>
+                </div>
+
+                {/* Doubao API Key */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="text-xl">✨</span>
+                      Doubao API Key
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <a
+                      href="https://console.volcengine.com/ark"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline"
+                    >
+                      获取密钥 <FiExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showKeys.doubaoKey ? "text" : "password"}
+                      value={apiKeys.doubaoKey}
+                      onChange={(e) => setApiKeys({...apiKeys, doubaoKey: e.target.value})}
+                      placeholder="xxxxxxxxxxxxx"
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowKey('doubaoKey')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showKeys.doubaoKey ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    用于：小红书二创的图生图优化（SeeDream 4.0）
+                  </p>
+                </div>
+
+                {/* XHS Cookie (Optional) */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="text-xl">🍪</span>
+                      小红书 Cookie
+                      <span className="text-gray-400 text-xs ml-2">（可选）</span>
+                    </Label>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showKeys.xhsCookie ? "text" : "password"}
+                      value={apiKeys.xhsCookie}
+                      onChange={(e) => setApiKeys({...apiKeys, xhsCookie: e.target.value})}
+                      placeholder="web_session=xxxxx; xsecappid=xhs-pc-web"
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowKey('xhsCookie')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showKeys.xhsCookie ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p className="text-xs text-gray-700 mb-2"><strong>获取方式：</strong></p>
+                    <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
+                      <li>浏览器打开 <a href="https://www.xiaohongshu.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">xiaohongshu.com</a></li>
+                      <li>登录你的小红书账号</li>
+                      <li>按 F12 打开开发者工具</li>
+                      <li>切换到 Application → Cookies → xiaohongshu.com</li>
+                      <li>复制 web_session 的值，格式：web_session=xxxxx; xsecappid=xhs-pc-web</li>
+                    </ol>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    用于：小红书搜索功能（不配置则无法使用小红书搜索）
+                  </p>
+                </div>
+
+                {/* 配置状态 */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-5">
+                  <h4 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+                    <FiCheckCircle className="w-5 h-5" />
+                    配置状态
+                  </h4>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className={`flex items-center gap-2 p-3 rounded-lg ${apiKeys.openrouterKey ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {apiKeys.openrouterKey ? <FiCheckCircle className="w-4 h-4" /> : <FiXCircle className="w-4 h-4" />}
+                      <span className="text-sm">OpenRouter</span>
+                    </div>
+                    <div className={`flex items-center gap-2 p-3 rounded-lg ${apiKeys.siliconflowKey ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {apiKeys.siliconflowKey ? <FiCheckCircle className="w-4 h-4" /> : <FiXCircle className="w-4 h-4" />}
+                      <span className="text-sm">SiliconFlow</span>
+                    </div>
+                    <div className={`flex items-center gap-2 p-3 rounded-lg ${apiKeys.doubaoKey ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {apiKeys.doubaoKey ? <FiCheckCircle className="w-4 h-4" /> : <FiXCircle className="w-4 h-4" />}
+                      <span className="text-sm">Doubao</span>
+                    </div>
+                    <div className={`flex items-center gap-2 p-3 rounded-lg ${apiKeys.xhsCookie ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {apiKeys.xhsCookie ? <FiCheckCircle className="w-4 h-4" /> : <FiXCircle className="w-4 h-4" />}
+                      <span className="text-sm">小红书 Cookie（可选）</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 保存和清除按钮 */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={handleSaveApiKeys}
+                    className={`flex-1 px-6 py-4 bg-gradient-to-r ${colors.gradients.purple} text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 font-semibold`}
+                  >
+                    <FiSave className="w-5 h-5" />
+                    保存 API 密钥
+                  </button>
+                  <button
+                    onClick={handleClearApiKeys}
+                    className="px-6 py-4 bg-white border-2 border-red-300 text-red-600 rounded-xl hover:bg-red-50 transition-all flex items-center gap-2 font-semibold"
+                  >
+                    <FiXCircle className="w-5 h-5" />
+                    清除所有密钥
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
             {/* 公众号文案 */}
             {activeTab === 'wechat' && (
               <motion.div
@@ -241,7 +526,7 @@ export default function SettingsPage() {
                     小红书二创 - 图片分析提示词
                   </h3>
                   <p className="text-sm text-pink-800">
-                    用于 Gemini 2.5 Pro 分析原图并生成适合图片生成模型的英文提示词，实现图生图二创。
+                    用于 Gemini 3 Pro 分析原图并生成适合图片生成模型的英文提示词，实现图生图二创。
                   </p>
                 </div>
                 <Textarea
@@ -258,14 +543,14 @@ export default function SettingsPage() {
                       <span className="font-bold text-pink-600 flex-shrink-0">步骤1️⃣</span>
                       <div>
                         <strong className="block mb-1">文案二创</strong>
-                        <p className="text-gray-700">使用 Gemini 2.5 Pro 根据"小红书文案"提示词改写原文案，保持轻松活泼风格</p>
+                        <p className="text-gray-700">使用 Gemini 3 Pro 根据"小红书文案"提示词改写原文案，保持轻松活泼风格</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-2 bg-white bg-opacity-60 p-3 rounded-lg">
                       <span className="font-bold text-purple-600 flex-shrink-0">步骤2️⃣</span>
                       <div>
                         <strong className="block mb-1">图片分析</strong>
-                        <p className="text-gray-700">使用 Gemini 2.5 Pro 分析原图，根据本提示词生成适合图片生成模型的英文提示词</p>
+                        <p className="text-gray-700">使用 Gemini 3 Pro 分析原图，根据本提示词生成适合图片生成模型的英文提示词</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-2 bg-white bg-opacity-60 p-3 rounded-lg">
@@ -403,7 +688,7 @@ export default function SettingsPage() {
               </div>
               <div className="bg-purple-800 p-4 rounded-lg">
                 <div className="font-bold mb-2 text-lg text-white">2️⃣ 图片分析</div>
-                <p className="text-xs text-white leading-relaxed">Gemini 2.5 Pro 深度分析原图，生成英文提示词</p>
+                <p className="text-xs text-white leading-relaxed">Gemini 3 Pro 深度分析原图，生成英文提示词</p>
               </div>
               <div className="bg-purple-800 p-4 rounded-lg">
                 <div className="font-bold mb-2 text-lg text-white">3️⃣ 图片生成</div>

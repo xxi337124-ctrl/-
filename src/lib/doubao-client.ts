@@ -115,8 +115,17 @@ class DoubaoClient {
 
         const data: DoubaoImageGenerationResponse = await response.json();
 
+        // 添加详细的调试日志
+        console.log(`📊 豆包 API 响应数据:`, JSON.stringify(data).slice(0, 500));
+
         if (!data.data || data.data.length === 0) {
+          console.error('❌ 豆包 API 返回数据异常:', JSON.stringify(data).slice(0, 500));
           throw new Error("豆包 API 返回的数据为空");
+        }
+
+        if (!data.data[0]) {
+          console.error('❌ data.data[0] 为 undefined:', JSON.stringify(data).slice(0, 500));
+          throw new Error("豆包 API 返回数据格式错误: data.data[0] 不存在");
         }
 
         const imageUrl = data.data[0].url || data.data[0].b64_json;

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatNumber } from "@/lib/utils";
 import type { InsightReport, EnhancedInsightReport } from "@/types";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function TopicAnalysisPage() {
   const router = useRouter();
@@ -20,6 +21,10 @@ export default function TopicAnalysisPage() {
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
   const [allArticles, setAllArticles] = useState<any[]>([]); // 存储所有文章数据
   const [currentInsightId, setCurrentInsightId] = useState<string | null>(null); // 当前显示的洞察ID
+  const [rewriteContent, setRewriteContent] = useState<string>("");
+  const [rewriting, setRewriting] = useState(false);
+  const [rewritingArticleIndex, setRewritingArticleIndex] = useState<number | null>(null); // 正在二创的文章索引
+  const rewriteAreaRef = useRef<HTMLDivElement>(null); // 二创区域引用
 
   // 页面加载时获取最近的分析记录
   useEffect(() => {
@@ -31,24 +36,22 @@ export default function TopicAnalysisPage() {
 
     setLoading(true);
     setReport(null); // 清空之前的报告
+    setAllArticles([]); // 清空之前的文章列表
 
-    // 初始化进度步骤
+    // 初始化进度步骤 - 简化版本，只显示抓取文章
     const steps = [
       {
         text: searchType === 'keyword'
-          ? `正在获取公众号文章...`
+          ? `正在抓取公众号文章...`
           : `正在获取公众号最新文章...`,
         completed: false
       },
-      { text: `AI 分析热门文章...`, completed: false },
-      { text: "AI 生成选题洞察...", completed: false },
-      { text: "保存分析结果...", completed: false },
-      { text: "报告生成完成", completed: false },
+      { text: "文章抓取完成", completed: false },
     ];
     setProgressSteps(steps);
 
     try {
-      // 模拟进度更新 - 使用安全的更新方式
+      // 模拟进度更新
       const progressTimer1 = setTimeout(() => {
         setProgressSteps(prev => {
           if (prev.length > 0) {
@@ -58,29 +61,7 @@ export default function TopicAnalysisPage() {
           }
           return prev;
         });
-      }, 1000);
-
-      const progressTimer2 = setTimeout(() => {
-        setProgressSteps(prev => {
-          if (prev.length > 1) {
-            const updated = [...prev];
-            updated[1] = { ...updated[1], completed: true };
-            return updated;
-          }
-          return prev;
-        });
-      }, 15000);
-
-      const progressTimer3 = setTimeout(() => {
-        setProgressSteps(prev => {
-          if (prev.length > 2) {
-            const updated = [...prev];
-            updated[2] = { ...updated[2], completed: true };
-            return updated;
-          }
-          return prev;
-        });
-      }, 30000);
+      }, 500);
 
       const response = await fetch("/api/topic-analysis", {
         method: "POST",
@@ -88,40 +69,32 @@ export default function TopicAnalysisPage() {
         body: JSON.stringify({
           platform,
           searchType,
-          query: keyword
+          query: keyword,
+          skipInsights: true  // 跳过AI洞察分析，直接返回文章
         }),
       });
 
       const data = await response.json();
 
-      // 清除所有定时器
+      // 清除定时器
       clearTimeout(progressTimer1);
-      clearTimeout(progressTimer2);
-      clearTimeout(progressTimer3);
 
       if (data.success) {
-        // API成功返回,所有步骤完成
+        // 完成所有步骤
         setProgressSteps(prev => {
-          if (prev.length >= 5) {
-            return prev.map((step, index) => ({
-              ...step,
-              completed: true
-            }));
-          }
-          return prev;
+          return prev.map(step => ({ ...step, completed: true }));
         });
 
-        setReport(data.data.report);
-        setAllArticles(data.data.allArticles || []); // 保存所有文章
-        setCurrentInsightId(data.data.insightId); // 保存当前洞察ID
-        loadRecentInsights();
+        // 直接设置文章列表，不显示洞察报告
+        setAllArticles(data.data.articles || []);
+        setCurrentInsightId(null);
       } else {
-        alert(`分析失败: ${data.error || "未知错误"}`);
+        alert(`抓取失败: ${data.error || "未知错误"}`);
         setProgressSteps([]); // 清空进度
       }
     } catch (error) {
-      console.error("分析失败:", error);
-      alert("分析失败,请检查网络连接后重试");
+      console.error("抓取失败:", error);
+      alert("抓取失败,请检查网络连接后重试");
       setProgressSteps([]); // 清空进度
     } finally {
       setLoading(false);
@@ -183,14 +156,114 @@ export default function TopicAnalysisPage() {
     }
   };
 
-  // 导航到小红书二创页面
-  const handleNavigateToContentCreation = () => {
-    if (!currentInsightId) {
-      alert('请先完成选题分析');
+  // 公众号文章AI二创改写
+  const handleRewriteArticle = async (article: any, index: number) => {
+    setSelectedArticle(article);
+    setRewritingArticleIndex(index);
+    setRewriting(true);
+    setRewriteContent("");
+
+    // 滚动到二创区域
+    setTimeout(() => {
+      rewriteAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+
+    try {
+      // 调用AI二创API
+      const response = await fetch('/api/ai/rewrite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: article.title,
+          content: article.content || article.title,
+          platform: 'wechat',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.data?.content) {
+        setRewriteContent(data.data.content);
+      } else {
+        throw new Error(data.error || '二创失败');
+      }
+    } catch (error) {
+      console.error("二创失败:", error);
+      alert("二创失败，请稍后重试");
+      setRewritingArticleIndex(null);
+    } finally {
+      setRewriting(false);
+    }
+  };
+
+  const handleSaveRewriteToArticles = async () => {
+    if (!rewriteContent) {
+      alert('请先生成二创内容');
       return;
     }
-    // 跳转到小红书二创页面
-    router.push(`/?tab=xiaohongshu-rewrite`);
+
+    try {
+      const response = await fetch('/api/articles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: selectedArticle?.title || '公众号二创内容',
+          content: rewriteContent,
+          status: 'DRAFT',
+          wordCount: rewriteContent.length,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('✅ 已保存到文章库！可在发布管理中查看');
+        setRewriteContent("");
+        setSelectedArticle(null);
+        setRewritingArticleIndex(null);
+      } else {
+        alert(`保存失败: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('保存失败:', error);
+      alert('保存失败，请稍后重试');
+    }
+  };
+
+  // 保存未二创的文章到素材库
+  const handleSaveToMaterials = async () => {
+    if (allArticles.length === 0) {
+      alert('没有文章可保存');
+      return;
+    }
+
+    if (!confirm(`确定要将这 ${allArticles.length} 篇文章保存到素材库吗？`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword,
+          searchType: `wechat_${searchType}`,
+          articles: allArticles,
+          totalArticles: allArticles.length,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ 成功保存 ${allArticles.length} 篇文章到素材库！可在素材库中查看`);
+      } else {
+        alert(`保存失败: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('保存素材失败:', error);
+      alert('保存失败，请稍后重试');
+    }
   };
 
   // 保存报告为图片 (TODO: 实现图片生成)
@@ -204,10 +277,10 @@ export default function TopicAnalysisPage() {
         {/* 头部 */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            公众号爆文分析
+            公众号文章采集
           </h1>
           <p className="text-sm text-gray-500">
-            输入关键词或公众号名称,AI智能分析公众号内容,生成选题洞察报告
+            输入关键词或公众号名称，快速获取文章列表，一键AI二创
           </p>
         </div>
 
@@ -304,18 +377,16 @@ export default function TopicAnalysisPage() {
               </div>
             </div>
 
-            {/* 智能分析提示 */}
+            {/* 提示信息 */}
             {keyword.trim() && !loading && (
-              <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-                <svg className="w-5 h-5 text-indigo-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />
+              <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
-                <div className="text-sm text-indigo-900">
-                  <span className="font-semibold">AI 深度分析</span>
+                <div className="text-sm text-green-900">
+                  <span className="font-semibold">快速抓取</span>
                   {" "}·{" "}
-                  TOP 5 热门文章 + 3 条专业洞察
-                  {" "}·{" "}
-                  <span className="font-medium bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Powered by Gemini 2.5 Pro</span>
+                  获取公众号文章列表，可直接二创
                 </div>
               </div>
             )}
@@ -401,6 +472,159 @@ export default function TopicAnalysisPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* 文章列表 - 当有文章但没有洞察报告时显示 */}
+        {!report && allArticles.length > 0 && (
+          <div className="space-y-6">
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{keyword} - 文章列表</h2>
+                  <p className="text-sm text-gray-500 mt-1">共找到 {allArticles.length} 篇文章，可直接二创</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSaveToMaterials}
+                  variant="outline"
+                  className="h-10 px-4 border-green-300 text-green-700 hover:bg-green-50"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                  </svg>
+                  存入素材库
+                </Button>
+                <button
+                  onClick={() => {
+                    setAllArticles([]);
+                    setKeyword('');
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  关闭
+                </button>
+              </div>
+            </div>
+
+            {/* 文章卡片网格 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {allArticles.map((article, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Card
+                    className={`group hover:shadow-lg transition-all duration-300 ${
+                      rewritingArticleIndex === index ? 'border-green-500 border-2 shadow-lg' : 'hover:border-green-300'
+                    }`}
+                  >
+                    <CardContent className="p-5">
+                      {/* 文章序号标签 */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className={`px-2 py-1 rounded text-xs font-semibold ${
+                          rewritingArticleIndex === index
+                            ? 'bg-green-500 text-white'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          #{index + 1}
+                        </div>
+                        {rewritingArticleIndex === index && (
+                          <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            二创中...
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 文章标题 */}
+                      <div className="mb-3">
+                        <h3
+                          className="font-semibold text-gray-900 mb-2 line-clamp-2 cursor-pointer hover:text-green-600 transition-colors"
+                          onClick={() => window.open(article.url, '_blank')}
+                        >
+                          {article.title}
+                        </h3>
+                        {article.content && (
+                          <p className="text-sm text-gray-600 line-clamp-3">
+                            {article.content}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* 数据统计 */}
+                      <div className="flex items-center gap-3 mb-4 text-xs text-gray-500">
+                        {article.views > 0 && (
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                              <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                            </svg>
+                            {formatNumber(article.views)}
+                          </span>
+                        )}
+                        {article.likes > 0 && (
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                            </svg>
+                            {formatNumber(article.likes)}
+                          </span>
+                        )}
+                        {article.publishTime && (
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
+                            {formatDate(article.publishTime)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 操作按钮 */}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleRewriteArticle(article, index)}
+                          disabled={rewriting}
+                          className="flex-1 h-9 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          {rewritingArticleIndex === index ? '二创中...' : 'AI二创'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(article.url, '_blank')}
+                          className="h-9 px-3 border-gray-300"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* 洞察报告 */}
@@ -908,13 +1132,20 @@ export default function TopicAnalysisPage() {
                   </div>
                   <div className="flex gap-3">
                     <Button
-                      onClick={handleNavigateToContentCreation}
+                      onClick={() => {
+                        if (!allArticles || allArticles.length === 0) {
+                          alert('暂无文章可供二创');
+                          return;
+                        }
+                        // 使用第一篇文章作为示例
+                        handleRewriteArticle(allArticles[0]);
+                      }}
                       className="flex-1 h-11 text-sm bg-green-600 hover:bg-green-700 transition-colors"
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      生成文章
+                      AI二创改写
                     </Button>
                     <Button
                       onClick={handleSaveReport}
@@ -955,13 +1186,20 @@ export default function TopicAnalysisPage() {
                   </div>
                   <div className="flex gap-3">
                     <Button
-                      onClick={handleNavigateToContentCreation}
+                      onClick={() => {
+                        if (!allArticles || allArticles.length === 0) {
+                          alert('暂无文章可供二创');
+                          return;
+                        }
+                        // 使用第一篇文章作为示例
+                        handleRewriteArticle(allArticles[0]);
+                      }}
                       className="flex-1 h-11 text-sm bg-green-600 hover:bg-green-700 transition-colors"
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      生成文章
+                      AI二创改写
                     </Button>
                     <Button
                       onClick={handleSaveReport}
@@ -977,6 +1215,84 @@ export default function TopicAnalysisPage() {
                 </CardContent>
               </Card>
             )}
+          </div>
+        )}
+
+        {/* AI二创改写区域 */}
+        {selectedArticle && (rewriting || rewriteContent) && (
+          <div ref={rewriteAreaRef}>
+            <Card className="mb-6 border-0 shadow-lg">
+              <CardHeader className="pb-4 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-semibold">公众号文章AI二创 #{rewritingArticleIndex !== null ? rewritingArticleIndex + 1 : '?'}</CardTitle>
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">原文: {selectedArticle.title}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedArticle(null);
+                      setRewriteContent("");
+                      setRewriting(false);
+                      setRewritingArticleIndex(null);
+                    }}
+                    className="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </CardHeader>
+            <CardContent className="pt-6">
+              {rewriting ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <svg className="animate-spin h-12 w-12 text-green-600 mb-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p className="text-gray-600 font-medium">AI正在二创改写中...</p>
+                  <p className="text-sm text-gray-500 mt-2">保留核心观点，全新表达方式</p>
+                </div>
+              ) : rewriteContent ? (
+                <div>
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 max-h-96 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans leading-relaxed">
+                      {rewriteContent}
+                    </pre>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleSaveRewriteToArticles}
+                      className="flex-1 h-11 bg-green-600 hover:bg-green-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      保存到文章库
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setRewriteContent("");
+                        setSelectedArticle(null);
+                        setRewritingArticleIndex(null);
+                      }}
+                      variant="outline"
+                      className="h-11 px-6 border-gray-300 hover:bg-gray-50"
+                    >
+                      取消
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
           </div>
         )}
 
@@ -1132,21 +1448,6 @@ export default function TopicAnalysisPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                         查看
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 h-9 border-purple-300 text-purple-700 hover:bg-purple-50"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // 跳转到小红书二创页面
-                          router.push(`/?tab=xiaohongshu-rewrite`);
-                        }}
-                      >
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        创作
                       </Button>
                     </div>
                   </CardContent>

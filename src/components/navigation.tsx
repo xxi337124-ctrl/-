@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: "仪表盘", href: "/dashboard" },
   { name: "选题", href: "/topic-analysis" },
-  { name: "创作", href: "/content-creation" },
+  { name: "创作", href: "/?tab=smart-creation" },
   { name: "管理", href: "/publish-management" },
 ];
 

@@ -3,22 +3,49 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { FiEdit2, FiEye, FiSend, FiClock, FiFileText, FiTrendingUp } from "react-icons/fi";
+import { FiEdit2, FiEye, FiSend, FiClock, FiFileText, FiTrendingUp, FiTrash } from "react-icons/fi";
 import { PageContainer, GridLayout, Section } from "@/components/common/Layout";
 import { ContentCard, StatCard } from "@/components/common/Card";
 import { colors, animations } from "@/lib/design";
 import { formatDate } from "@/lib/utils";
 import { StatusLabels } from "@/types";
 import { Status } from "@prisma/client";
+import WechatPublishModal from "./PublishManagement/WechatPublishModal";
+import XiaohongshuQRModal from "./PublishManagement/XiaohongshuQRModal";
 
 export default function PublishManagementPage() {
   const [articles, setArticles] = useState<any[]>([]);
-  const [filter, setFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<string>("DRAFT"); // 默认显示草稿（待发布的作品）
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
+  // 公众号发布弹窗状态
+  const [showWechatModal, setShowWechatModal] = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState<any>(null);
+
+  // 小红书发布弹窗状态
+  const [showXiaohongshuModal, setShowXiaohongshuModal] = useState(false);
+  const [xiaohongshuPublishData, setXiaohongshuPublishData] = useState<{
+    qrCodeUrl: string;
+    publishUrl?: string;
+    noteId?: string;
+    warnings?: string[];
+  } | null>(null);
+
+  // 文章预览弹窗状态
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewArticle, setPreviewArticle] = useState<any>(null);
+
   useEffect(() => {
     loadArticles();
+  }, [filter]);
+
+  useEffect(() => {
+    // 实时更新：每5秒自动刷新一次
+    const interval = setInterval(() => {
+      loadArticles();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [filter]);
 
   const loadArticles = async () => {
@@ -45,27 +72,83 @@ export default function PublishManagementPage() {
     }
   };
 
-  const handlePublish = async (articleId: string, platform: "xiaohongshu" | "wechat") => {
-    if (!confirm(`确定要发布到${platform === "xiaohongshu" ? "小红书" : "公众号"}吗?`)) {
+  const handlePublish = async (articleId: string, article: any, platform: "xiaohongshu" | "wechat") => {
+    // 如果是公众号发布，打开配置弹窗
+    if (platform === "wechat") {
+      setSelectedArticle(article);
+      setShowWechatModal(true);
       return;
     }
 
+    // 小红书发布：调用新的 Xiaohongshu API
+    if (platform === "xiaohongshu") {
+      if (!confirm(`确定要发布到小红书吗？`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/xiaohongshu/publish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ articleId }),
+        });
+
+        const data = await response.json();
+
+        console.log('📕 小红书发布API响应:', data);
+
+        if (data.success) {
+          // 显示二维码弹窗
+          console.log('✅ 小红书发布成功');
+          console.log('🔍 qrCodeUrl:', data.data?.qrCodeUrl);
+          console.log('🔍 完整data.data:', data.data);
+
+          if (!data.data?.qrCodeUrl) {
+            console.error('❌ qrCodeUrl为空！');
+            alert('发布成功，但未获取到二维码URL，请检查后端日志');
+            loadArticles();
+            return;
+          }
+
+          setXiaohongshuPublishData({
+            qrCodeUrl: data.data.qrCodeUrl,
+            publishUrl: data.data.publishUrl,
+            noteId: data.data.noteId,
+            warnings: data.data.warnings,
+          });
+          setShowXiaohongshuModal(true);
+          console.log('📱 已设置showXiaohongshuModal = true');
+          loadArticles(); // 刷新文章列表
+        } else {
+          alert(`发布失败: ${data.error}`);
+        }
+      } catch (error) {
+        console.error('发布到小红书失败:', error);
+        alert("发布失败，请稍后重试");
+      }
+      return;
+    }
+  };
+
+  const handleDeleteArticle = async (articleId: string) => {
+    if (!confirm("确定要删除这篇文章吗？删除后无法恢复。")) return;
+
     try {
-      const response = await fetch("/api/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ articleId, platform }),
+      const response = await fetch(`/api/articles/${articleId}`, {
+        method: "DELETE",
       });
 
       const data = await response.json();
+
       if (data.success) {
-        alert("发布成功!");
-        loadArticles();
+        alert("文章已删除");
+        loadArticles(); // 重新加载列表
       } else {
-        alert(`发布失败: ${data.error}`);
+        alert(`删除失败: ${data.error}`);
       }
     } catch (error) {
-      alert("发布失败,请稍后重试");
+      console.error("删除文章失败:", error);
+      alert("删除失败");
     }
   };
 
@@ -101,7 +184,7 @@ export default function PublishManagementPage() {
       title="发布管理中心"
       description="统一管理您的所有文章，一键发布到多个平台"
       actions={
-        <Link href="/content-creation">
+        <Link href="/?tab=smart-creation">
           <button className={`px-6 py-3 bg-gradient-to-r ${colors.gradients.purple} text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2`}>
             <FiSend className="w-5 h-5" />
             新建创作
@@ -214,7 +297,7 @@ export default function PublishManagementPage() {
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-3">还没有文章</h3>
             <p className="text-gray-600 mb-8">开始创作您的第一篇文章吧</p>
-            <Link href="/content-creation">
+            <Link href="/?tab=smart-creation">
               <button className={`px-8 py-4 bg-gradient-to-r ${colors.gradients.purple} text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2 mx-auto`}>
                 <FiSend className="w-5 h-5" />
                 开始创作
@@ -258,12 +341,23 @@ export default function PublishManagementPage() {
                           </button>
                         </Link>
 
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteArticle(article.id);
+                          }}
+                          className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          title="删除"
+                        >
+                          <FiTrash className="w-4 h-4 text-red-500" />
+                        </button>
+
                         {article.status === "DRAFT" && (
                           <>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handlePublish(article.id, "xiaohongshu");
+                                handlePublish(article.id, article, "xiaohongshu");
                               }}
                               className="px-3 py-1.5 bg-gradient-to-r from-red-400 to-pink-400 text-white text-xs rounded-lg hover:shadow-md transition-all flex items-center gap-1"
                               title="发布到小红书"
@@ -273,7 +367,7 @@ export default function PublishManagementPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handlePublish(article.id, "wechat");
+                                handlePublish(article.id, article, "wechat");
                               }}
                               className="px-3 py-1.5 bg-gradient-to-r from-green-400 to-emerald-400 text-white text-xs rounded-lg hover:shadow-md transition-all flex items-center gap-1"
                               title="发布到公众号"
@@ -286,7 +380,15 @@ export default function PublishManagementPage() {
                         {(article.status === "PUBLISHED_XHS" ||
                           article.status === "PUBLISHED_WECHAT" ||
                           article.status === "PUBLISHED_ALL") && (
-                          <button className="p-2 hover:bg-blue-50 rounded-lg transition-colors" title="查看">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewArticle(article);
+                              setShowPreviewModal(true);
+                            }}
+                            className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="查看"
+                          >
                             <FiEye className="w-4 h-4 text-blue-600" />
                           </button>
                         )}
@@ -341,6 +443,184 @@ export default function PublishManagementPage() {
             </svg>
           </button>
         </motion.div>
+      )}
+
+      {/* 公众号发布弹窗 */}
+      {showWechatModal && selectedArticle && (
+        <WechatPublishModal
+          article={selectedArticle}
+          onClose={() => {
+            setShowWechatModal(false);
+            setSelectedArticle(null);
+          }}
+          onSuccess={() => {
+            setShowWechatModal(false);
+            setSelectedArticle(null);
+            loadArticles();
+          }}
+        />
+      )}
+
+      {/* 小红书发布弹窗 */}
+      {showXiaohongshuModal && xiaohongshuPublishData && (
+        <XiaohongshuQRModal
+          qrCodeUrl={xiaohongshuPublishData.qrCodeUrl}
+          publishUrl={xiaohongshuPublishData.publishUrl}
+          noteId={xiaohongshuPublishData.noteId}
+          warnings={xiaohongshuPublishData.warnings}
+          onClose={() => {
+            setShowXiaohongshuModal(false);
+            setXiaohongshuPublishData(null);
+          }}
+        />
+      )}
+
+      {/* 文章预览弹窗 */}
+      {showPreviewModal && previewArticle && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <motion.div
+            {...animations.fadeIn}
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-800">{previewArticle.title}</h2>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+              {/* 文章信息 */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">状态：</span>
+                    <span className={`ml-2 px-2 py-1 rounded ${getStatusColor(previewArticle.status)}`}>
+                      {StatusLabels[previewArticle.status as Status]}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">字数：</span>
+                    <span className="ml-2 font-medium">{previewArticle.wordCount} 字</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">创建时间：</span>
+                    <span className="ml-2">{new Date(previewArticle.createdAt).toLocaleString('zh-CN')}</span>
+                  </div>
+                  {previewArticle.publishes && previewArticle.publishes.length > 0 && (
+                    <div>
+                      <span className="text-gray-600">发布平台：</span>
+                      {previewArticle.publishes.map((pub: any) => (
+                        <span key={pub.id} className="ml-2">
+                          {pub.platform === "XIAOHONGSHU" ? "📕 小红书" : "💬 公众号"}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 文章内容 */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">文章内容</h3>
+                <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                  <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    {previewArticle.content}
+                  </p>
+                </div>
+              </div>
+
+              {/* 文章图片 */}
+              {(() => {
+                // 调试信息
+                console.log('预览文章数据:', {
+                  id: previewArticle.id,
+                  title: previewArticle.title,
+                  images: previewArticle.images,
+                  imagesType: typeof previewArticle.images,
+                });
+
+                if (!previewArticle.images) {
+                  console.log('❌ 没有图片数据');
+                  return (
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg text-center text-gray-500">
+                      该文章暂无图片
+                    </div>
+                  );
+                }
+
+                try {
+                  // 解析图片数据
+                  const imageUrls = JSON.parse(previewArticle.images);
+                  console.log('✅ 解析后的图片URL:', imageUrls);
+
+                  if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+                    return (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                          文章图片 ({imageUrls.length} 张)
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {imageUrls.map((url: string, index: number) => (
+                            <div key={index} className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                              <img
+                                src={url}
+                                alt={`图片 ${index + 1}`}
+                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                                onLoad={() => console.log(`✅ 图片 ${index + 1} 加载成功:`, url.substring(0, 50))}
+                                onError={(e) => {
+                                  console.error(`❌ 图片 ${index + 1} 加载失败:`, url);
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f0f0f0" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3E图片加载失败%3C/text%3E%3C/svg%3E';
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    console.log('⚠️ 图片数组为空或格式不对:', imageUrls);
+                    return (
+                      <div className="mb-6 p-4 bg-yellow-50 rounded-lg text-center text-yellow-700">
+                        图片数据格式异常（数组为空或格式不对）
+                      </div>
+                    );
+                  }
+                } catch (e) {
+                  console.error('❌ 解析图片JSON失败:', e, '原始数据:', previewArticle.images);
+                  return (
+                    <div className="mb-6 p-4 bg-red-50 rounded-lg">
+                      <p className="text-red-700 mb-2">图片数据解析失败</p>
+                      <p className="text-sm text-gray-600">原始数据: {previewArticle.images.substring(0, 100)}...</p>
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* 操作按钮 */}
+              <div className="flex gap-3">
+                <Link href={`/article/${previewArticle.id}`} className="flex-1">
+                  <button className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                    <FiEdit2 className="w-5 h-5" />
+                    编辑文章
+                  </button>
+                </Link>
+                <button
+                  onClick={() => setShowPreviewModal(false)}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
     </PageContainer>
   );
