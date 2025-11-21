@@ -370,7 +370,7 @@ async function processCreationTask(taskId: string) {
         data: { progress: 10, progressMessage: "正在加载原文数据..." },
       });
 
-      fetchRecord = await prisma.articlesFetch.findUnique({
+      fetchRecord = await prisma.article_fetches.findUnique({
         where: { id: topicIndexesData.fetchId }
       });
 
