@@ -97,11 +97,11 @@ export async function POST(request: NextRequest) {
       where: { articleId: article.id },
     });
 
-    const hasXHS = publishes.some((p) => p.platform === Platform.XIAOHONGSHU);
-    const hasWechat = publishes.some((p) => p.platform === Platform.WECHAT);
+    const hasXHS = publishes.some((p) => p.platform === "xiaohongshu");
+    const hasWechat = publishes.some((p) => p.platform === "wechat");
 
     if (hasXHS && hasWechat) {
-      newStatus = Status.PUBLISHED_ALL;
+      newStatus = "PUBLISHED_ALL";
     }
 
     await prisma.articles.update({
