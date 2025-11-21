@@ -5,7 +5,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { xiaohongshuProcessor, XiaohongshuPost } from '@/lib/xiaohongshu-processor';
-import { auth } from '@/lib/auth';
 
 // 模拟小红书数据（实际使用时应该从数据库或API获取）
 const mockXiaohongshuPosts: XiaohongshuPost[] = [
@@ -46,14 +45,14 @@ const mockXiaohongshuPosts: XiaohongshuPost[] = [
 
 export async function POST(request: NextRequest) {
   try {
-    // 验证用户身份
-    const user = await auth.getUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: '未授权访问' },
-        { status: 401 }
-      );
-    }
+    // TODO: 添加用户身份验证
+    // const user = await auth.getUser(request);
+    // if (!user) {
+    //   return NextResponse.json(
+    //     { error: '未授权访问' },
+    //     { status: 401 }
+    //   );
+    // }
 
     const body = await request.json();
     const {
