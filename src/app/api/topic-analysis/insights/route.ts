@@ -123,9 +123,9 @@ function generateWordCloud(articles: any[]): { word: string; count: number }[] {
     const words = article.title
       .replace(/[,.!?;:，。!?;:、【】()（）]/g, ' ')
       .split(/\s+/)
-      .filter(word => word.length >= 2 && !stopWords.has(word));
+      .filter((word: string) => word.length >= 2 && !stopWords.has(word));
 
-    words.forEach(word => {
+    words.forEach((word: string) => {
       wordMap.set(word, (wordMap.get(word) || 0) + 1);
     });
   });
