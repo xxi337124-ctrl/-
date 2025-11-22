@@ -1,4 +1,6 @@
-import { Status, Platform } from "@prisma/client";
+// 状态和平台类型定义
+export type Status = "DRAFT" | "PUBLISHED" | "PUBLISHED_XHS" | "PUBLISHED_WECHAT" | "PUBLISHED_ALL";
+export type Platform = "xiaohongshu" | "wechat" | "all";
 
 // 文章数据类型
 export interface ArticleData {

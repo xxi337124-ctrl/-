@@ -9,7 +9,6 @@ import { ContentCard, StatCard } from "@/components/common/Card";
 import { colors, animations } from "@/lib/design";
 import { formatDate } from "@/lib/utils";
 import { StatusLabels } from "@/types";
-import { Status } from "@prisma/client";
 import WechatPublishModal from "./PublishManagement/WechatPublishModal";
 import XiaohongshuQRModal from "./PublishManagement/XiaohongshuQRModal";
 

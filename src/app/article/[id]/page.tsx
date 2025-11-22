@@ -10,7 +10,6 @@ import {
   FiMaximize2, FiMinimize2
 } from "react-icons/fi";
 import { StatusLabels } from "@/types";
-import { Status } from "@prisma/client";
 import { colors, animations } from "@/lib/design";
 
 export default function ArticlePage({
