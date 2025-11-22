@@ -9,7 +9,7 @@ import {
   FiSend, FiZap, FiClock, FiFileText, FiImage,
   FiMaximize2, FiMinimize2
 } from "react-icons/fi";
-import { StatusLabels } from "@/types";
+import { StatusLabels, Status } from "@/types";
 import { colors, animations } from "@/lib/design";
 
 export default function ArticlePage({
