@@ -8,7 +8,7 @@ import { PageContainer, GridLayout, Section } from "@/components/common/Layout";
 import { ContentCard, StatCard } from "@/components/common/Card";
 import { colors, animations } from "@/lib/design";
 import { formatDate } from "@/lib/utils";
-import { StatusLabels } from "@/types";
+import { StatusLabels, Status } from "@/types";
 import WechatPublishModal from "./PublishManagement/WechatPublishModal";
 import XiaohongshuQRModal from "./PublishManagement/XiaohongshuQRModal";
 

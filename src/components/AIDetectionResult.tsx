@@ -185,7 +185,7 @@ export default function AIDetectionResult({ text, onResult, className = '' }: Pr
           <BarChart3 className="w-4 h-4" />
           改进建议
         </h4>
-        {consensus.recommendations.map((rec, index) => (
+        {consensus.recommendations.map((rec: string, index: number) => (
           <div key={index} className="p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
             <p className="text-sm">{rec}</p>
           </div>

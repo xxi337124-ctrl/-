@@ -31,23 +31,26 @@ function TabHandler({ onTabChange }: { onTabChange: (tab: ActiveTab) => void }) 
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const tab = searchParams.get("tab") as ActiveTab;
+    const tab = searchParams.get("tab");
     console.log('TabHandler - 检测到tab参数:', tab, 'URL:', window.location.href);
 
     // 向后兼容: 重定向旧的content-creation路由到smart-creation
-    if (tab === "content-creation" as string) {
+    if (tab === "content-creation") {
       console.log('TabHandler - 重定向到smart-creation');
       onTabChange("smart-creation");
       return;
     }
 
-    if (tab && ["dashboard", "smart-creation", "topic-analysis", "publish-management", "materials", "settings", "xiaohongshu-rewrite"].includes(tab)) {
-      console.log('TabHandler - 切换到标签页:', tab);
-      onTabChange(tab);
-    } else if (tab === "history") {
-      // 向后兼容：重定向旧的history路由到materials
+    // 向后兼容：重定向旧的history路由到materials
+    if (tab === "history") {
       console.log('TabHandler - 重定向history到materials');
       onTabChange("materials");
+      return;
+    }
+
+    if (tab && ["dashboard", "smart-creation", "topic-analysis", "publish-management", "materials", "settings", "xiaohongshu-rewrite"].includes(tab)) {
+      console.log('TabHandler - 切换到标签页:', tab);
+      onTabChange(tab as ActiveTab);
     }
   }, [searchParams, onTabChange]);
 

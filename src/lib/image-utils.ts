@@ -62,7 +62,8 @@ function shouldIncludeImage(url: string): boolean {
 export async function validateImageUrl(url: string): Promise<boolean> {
   try {
     const response = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-    return response.ok && response.headers.get('content-type')?.startsWith('image/');
+    const contentType = response.headers.get('content-type');
+    return response.ok && (contentType?.startsWith('image/') ?? false);
   } catch {
     return false;
   }

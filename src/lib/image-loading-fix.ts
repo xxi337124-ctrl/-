@@ -178,7 +178,8 @@ export function processImageUrls(
 
       // 添加缓存破坏参数
       if (addCacheBuster && url.startsWith('http')) {
-        processedUrl = addCacheBuster(url);
+        const separator = url.includes('?') ? '&' : '?';
+        processedUrl = `${url}${separator}t=${Date.now()}`;
       }
 
       return processedUrl;
@@ -309,12 +310,14 @@ export function fixBrowserImageLoading(): void {
   }
 
   // 提供全局调试函数
+  // @ts-ignore - Extending window object for debugging
   window.fixImageLoading = () => {
     console.log('🔧 手动触发图片加载修复');
     clearImageCaches();
     forceReloadImages();
   };
 
+  // @ts-ignore - Extending window object for debugging
   window.debugImageLoading = () => {
     const images = document.querySelectorAll('img');
     const imageInfo = Array.from(images).map(img => ({
@@ -376,6 +379,7 @@ export function createImageMonitor() {
     }
   };
 
+  // @ts-ignore - Extending window object for monitoring
   window.imageMonitor = monitor;
   return monitor;
 }

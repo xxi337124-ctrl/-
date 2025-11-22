@@ -62,6 +62,7 @@ export interface EnhancedInsightReport extends InsightReport {
 export const StatusLabels: Record<Status, string> = {
   DRAFT: "草稿",
   PENDING: "待审核",
+  PUBLISHED: "已发布",
   PUBLISHED_XHS: "已发布-小红书",
   PUBLISHED_WECHAT: "已发布-公众号",
   PUBLISHED_ALL: "已发布-全平台",
@@ -69,8 +70,9 @@ export const StatusLabels: Record<Status, string> = {
 
 // 平台映射
 export const PlatformLabels: Record<Platform, string> = {
-  XIAOHONGSHU: "小红书",
-  WECHAT: "公众号",
+  xiaohongshu: "小红书",
+  wechat: "公众号",
+  all: "全平台",
 };
 
 // API响应类型

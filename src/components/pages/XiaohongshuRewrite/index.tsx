@@ -244,10 +244,10 @@ export default function XiaohongshuRewrite() {
         <div className="mb-8">
           <div className="flex items-center justify-center gap-4">
             {[
-              { key: 'extract', label: '1. 提取内容', icon: '🔍' },
-              { key: 'view', label: '2. 查看内容', icon: '👁️' },
-              { key: 'process', label: '3. AI处理', icon: '⚡' },
-              { key: 'result', label: '4. 查看结果', icon: '✨' },
+              { key: 'extract' as Step, label: '1. 提取内容', icon: '🔍' },
+              { key: 'view' as Step, label: '2. 查看内容', icon: '👁️' },
+              { key: 'process' as Step, label: '3. AI处理', icon: '⚡' },
+              { key: 'result' as Step, label: '4. 查看结果', icon: '✨' },
             ].map((step, index) => {
               const stepKeys: Step[] = ['extract', 'view', 'process', 'result'];
               const currentIndex = stepKeys.indexOf(currentStep);

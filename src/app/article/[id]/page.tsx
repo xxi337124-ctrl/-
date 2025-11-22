@@ -228,7 +228,7 @@ export default function ArticlePage({
             >
               {/* 标题编辑卡片 */}
               <motion.div
-                {...animations.slideUp}
+                {...animations.slideIn}
                 className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200/50"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -278,7 +278,7 @@ export default function ArticlePage({
 
               {/* AI工具栏 */}
               <motion.div
-                {...animations.slideUp}
+                {...animations.slideIn}
                 transition={{ delay: 0.1 }}
                 className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 rounded-2xl p-6 border border-purple-200/50"
               >
@@ -327,7 +327,7 @@ export default function ArticlePage({
 
               {/* 内容编辑器 */}
               <motion.div
-                {...animations.slideUp}
+                {...animations.slideIn}
                 transition={{ delay: 0.2 }}
                 className={`bg-white rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden ${
                   isFullscreen ? "fixed inset-4 z-50" : ""
@@ -387,7 +387,7 @@ export default function ArticlePage({
               className="mx-auto max-w-4xl"
             >
               <motion.div
-                {...animations.slideUp}
+                {...animations.slideIn}
                 className="bg-white rounded-2xl shadow-xl p-12 border border-gray-200/50"
               >
                 {/* 文章头部 */}

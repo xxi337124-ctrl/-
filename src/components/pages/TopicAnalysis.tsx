@@ -1138,7 +1138,7 @@ export default function TopicAnalysisPage() {
                           return;
                         }
                         // 使用第一篇文章作为示例
-                        handleRewriteArticle(allArticles[0]);
+                        handleRewriteArticle(allArticles[0], 0);
                       }}
                       className="flex-1 h-11 text-sm bg-green-600 hover:bg-green-700 transition-colors"
                     >
@@ -1192,7 +1192,7 @@ export default function TopicAnalysisPage() {
                           return;
                         }
                         // 使用第一篇文章作为示例
-                        handleRewriteArticle(allArticles[0]);
+                        handleRewriteArticle(allArticles[0], 0);
                       }}
                       className="flex-1 h-11 text-sm bg-green-600 hover:bg-green-700 transition-colors"
                     >

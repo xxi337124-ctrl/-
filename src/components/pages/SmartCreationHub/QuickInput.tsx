@@ -19,6 +19,7 @@ interface QuickInputProps {
   onBlur: () => void;
   showSuggestions: boolean;
   onQuickCreate: () => void;
+  setShowSuggestions?: (show: boolean) => void;
 }
 
 export default function QuickInput({
@@ -29,7 +30,8 @@ export default function QuickInput({
   onFocus,
   onBlur,
   showSuggestions,
-  onQuickCreate
+  onQuickCreate,
+  setShowSuggestions
 }: QuickInputProps) {
   const [isComposing, setIsComposing] = useState(false);
   const [showExamples, setShowExamples] = useState(true);
@@ -262,7 +264,7 @@ export default function QuickInput({
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>按 Tab 键选择第一个建议</span>
                 <button
-                  onClick={() => setShowSuggestions(false)}
+                  onClick={() => setShowSuggestions?.(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   收起

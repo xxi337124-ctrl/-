@@ -13,9 +13,9 @@ import {
 } from './prompts';
 import {
   naturalArticlePrompts,
-  UserWritingStyle,
-  detectAIContent
+  UserWritingStyle
 } from './natural-prompts';
+import { detectAIContent } from './ai-detection-engines';
 import { prisma } from './prisma';
 
 export interface ArticleGenerationParams {
@@ -231,25 +231,22 @@ export class ArticleGenerator {
    */
   private async callAIAPI(prompt: string, params: ArticleGenerationParams): Promise<string> {
     try {
-      // 使用OpenRouter API
-      const response = await openaiClient.chat.completions.create({
-        model: process.env.OPENAI_MODEL || "google/gemini-3-pro-preview",
-        messages: [
-          {
-            role: "system",
-            content: "你是一个专业的内容创作者，请根据用户的要求创作高质量的文章。"
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
+      // 使用OpenRouter Client
+      const response = await openaiClient.chat([
+        {
+          role: "system",
+          content: "你是一个专业的内容创作者，请根据用户的要求创作高质量的文章。"
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ], {
         temperature: 0.7,
-        max_tokens: 4000,
-        stream: false
+        maxTokens: 4000
       });
 
-      return response.choices[0]?.message?.content || '';
+      return response.content || '';
 
     } catch (error) {
       console.error('AI API调用失败:', error);
@@ -373,107 +370,74 @@ export async function generateArticleContent(params: ArticleGenerationParams): P
 
 /**
  * 便捷函数：获取用户写作风格
+ * TODO: 需要在 Prisma schema 中定义 writingStyleDNA 模型后启用
  */
 export async function getUserWritingStyle(userId: string): Promise<UserWritingStyle | null> {
-  try {
-    const userStyle = await prisma.writingStyleDNA.findUnique({
-      where: { userId },
-      include: {
-        personalExperiences: true
-      }
-    });
-
-    if (!userStyle) return null;
-
-    return {
-      id: userStyle.id,
-      name: userStyle.name,
-      characteristics: userStyle.characteristics,
-      personalExperiences: userStyle.personalExperiences,
-      commonPhrases: userStyle.commonPhrases,
-      createdAt: userStyle.createdAt,
-      updatedAt: userStyle.updatedAt
-    };
-  } catch (error) {
-    console.error('获取用户写作风格失败:', error);
-    return null;
-  }
+  // try {
+  //   const userStyle = await prisma.writingStyleDNA.findUnique({
+  //     where: { userId },
+  //     include: {
+  //       personalExperiences: true
+  //     }
+  //   });
+  //   if (!userStyle) return null;
+  //   return {
+  //     id: userStyle.id,
+  //     name: userStyle.name,
+  //     characteristics: userStyle.characteristics,
+  //     personalExperiences: userStyle.personalExperiences,
+  //     commonPhrases: userStyle.commonPhrases,
+  //     createdAt: userStyle.createdAt,
+  //     updatedAt: userStyle.updatedAt
+  //   };
+  // } catch (error) {
+  //   console.error('获取用户写作风格失败:', error);
+  //   return null;
+  // }
+  console.warn('getUserWritingStyle: writingStyleDNA model not defined in Prisma schema');
+  return null;
 }
 
 /**
  * 便捷函数：保存用户写作风格
+ * TODO: 需要在 Prisma schema 中定义 writingStyleDNA 模型后启用
  */
 export async function saveUserWritingStyle(userId: string, style: Partial<UserWritingStyle>): Promise<UserWritingStyle> {
-  try {
-    const result = await prisma.writingStyleDNA.upsert({
-      where: { userId },
-      update: {
-        name: style.name,
-        characteristics: style.characteristics,
-        commonPhrases: style.commonPhrases,
-        updatedAt: new Date()
-      },
-      create: {
-        userId,
-        name: style.name || '我的写作风格',
-        characteristics: style.characteristics || {},
-        commonPhrases: style.commonPhrases || [],
-        description: '用户自定义写作风格'
-      },
-      include: {
-        personalExperiences: true
-      }
-    });
-
-    return {
-      id: result.id,
-      name: result.name,
-      characteristics: result.characteristics,
-      personalExperiences: result.personalExperiences,
-      commonPhrases: result.commonPhrases,
-      createdAt: result.createdAt,
-      updatedAt: result.updatedAt
-    };
-  } catch (error) {
-    console.error('保存用户写作风格失败:', error);
-    throw new Error('保存写作风格失败');
-  }
-}
-
-/**
- * 便捷函数：检测AI内容
- */
-export async function detectAIContent(text: string) {
-  // 这里应该调用多引擎检测系统
-  // 简化实现，返回模拟结果
-  return {
-    results: [
-      {
-        engine: 'local',
-        displayName: '本地规则检测',
-        aiScore: 0.3,
-        humanScore: 0.7,
-        confidence: 0.8,
-        details: {
-          features: {
-            personalReferences: 15,
-            concreteDetails: 25,
-            emotionalWords: 8
-          }
-        }
-      }
-    ],
-    consensus: {
-      averageAIScore: 0.3,
-      averageHumanScore: 0.7,
-      confidence: 0.8,
-      agreement: 0.9
-    },
-    recommendations: [
-      '内容自然度较好，保持当前的写作风格',
-      '适当增加个人化表达和具体细节'
-    ]
-  };
+  // try {
+  //   const result = await prisma.writingStyleDNA.upsert({
+  //     where: { userId },
+  //     update: {
+  //       name: style.name,
+  //       characteristics: style.characteristics,
+  //       commonPhrases: style.commonPhrases,
+  //       updatedAt: new Date()
+  //     },
+  //     create: {
+  //       userId,
+  //       name: style.name || '我的写作风格',
+  //       characteristics: style.characteristics || {},
+  //       commonPhrases: style.commonPhrases || [],
+  //       description: '用户自定义写作风格'
+  //     },
+  //     include: {
+  //       personalExperiences: true
+  //     }
+  //   });
+  //   return {
+  //     id: result.id,
+  //     name: result.name,
+  //     characteristics: result.characteristics,
+  //     personalExperiences: result.personalExperiences,
+  //     commonPhrases: result.commonPhrases,
+  //     createdAt: result.createdAt,
+  //     updatedAt: result.updatedAt
+  //   };
+  // } catch (error) {
+  //   console.error('保存用户写作风格失败:', error);
+  //   throw new Error('保存写作风格失败');
+  // }
+  console.warn('saveUserWritingStyle: writingStyleDNA model not defined in Prisma schema');
+  throw new Error('写作风格功能暂未启用');
 }
 
 /**
@@ -587,10 +551,3 @@ export async function analyzePromptEffectiveness(
     suggestions
   };
 }
-
-// 导出类型定义
-export type {
-  ArticleGenerationParams,
-  GeneratedArticle,
-  UserWritingStyle
-};

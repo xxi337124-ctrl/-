@@ -579,7 +579,7 @@ export default function MaterialLibraryPage() {
                             }}
                           />
                           <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                            {idx + 1}/{previewArticle.images.length}
+                            {idx + 1}/{previewArticle.images?.length || 0}
                           </div>
                         </div>
                       )})}

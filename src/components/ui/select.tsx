@@ -157,6 +157,3 @@ export {
   SelectScrollUpButton,
   SelectScrollDownButton,
 }
-
-// Simplified version without scroll buttons
-export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectLabel, SelectItem, SelectSeparator }

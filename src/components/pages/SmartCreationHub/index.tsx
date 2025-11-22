@@ -126,10 +126,17 @@ export default function SmartCreationHub() {
   const getSmartSuggestions = useCallback((input: string) => {
     if (!input) return [];
 
-    const suggestions = [];
+    type SuggestionType = 'insight' | 'style' | 'template' | 'general';
+    interface Suggestion {
+      type: SuggestionType;
+      text: string;
+      action: string;
+    }
+
+    const suggestions: Suggestion[] = [];
 
     // 关键词匹配建议
-    const keywords = {
+    const keywords: Record<string, Suggestion[]> = {
       '咖啡': [
         { type: 'insight', text: '咖啡相关洞察 (5条)', action: 'coffee_insights' },
         { type: 'style', text: '文艺小清新风格', action: 'literary_style' },
@@ -241,6 +248,7 @@ export default function SmartCreationHub() {
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             showSuggestions={showSuggestions}
+            setShowSuggestions={setShowSuggestions}
             onQuickCreate={() => handleQuickCreate('input')}
           />
         </motion.div>

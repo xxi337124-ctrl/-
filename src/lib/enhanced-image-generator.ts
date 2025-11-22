@@ -46,7 +46,7 @@ export interface BatchGenerationResult {
   totalTime: number;
   successCount: number;
   failureCount: number;
-  modificationStats: Record<string, number>;
+  modificationStats?: Record<string, number>;
 }
 
 /**
@@ -281,7 +281,7 @@ export class EnhancedImageGenerator {
     const totalTime = Date.now() - startTime;
     const successCount = results.filter(r => r.success).length;
     const failureCount = results.filter(r => !r.success).length;
-    const modificationStats = getModificationStats(results);
+    // const modificationStats = getModificationStats(results);
 
     progressCallback?.({
       total: imageUrls.length,
@@ -299,7 +299,7 @@ export class EnhancedImageGenerator {
       totalTime,
       successCount,
       failureCount,
-      modificationStats
+      // modificationStats
     };
   }
 
@@ -367,7 +367,7 @@ export class EnhancedImageGenerator {
     report += `总耗时: ${totalTime}ms\n`;
     report += `平均耗时: ${Math.round(totalTime / results.length)}ms\n\n`;
 
-    if (Object.keys(modificationStats).length > 0) {
+    if (modificationStats && Object.keys(modificationStats).length > 0) {
       report += `修改统计:\n`;
       Object.entries(modificationStats).forEach(([modification, count]) => {
         report += `  - ${modification}: ${count} 次\n`;
