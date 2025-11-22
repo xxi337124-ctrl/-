@@ -1,5 +1,5 @@
 // 状态和平台类型定义
-export type Status = "DRAFT" | "PUBLISHED" | "PUBLISHED_XHS" | "PUBLISHED_WECHAT" | "PUBLISHED_ALL";
+export type Status = "DRAFT" | "PENDING" | "PUBLISHED" | "PUBLISHED_XHS" | "PUBLISHED_WECHAT" | "PUBLISHED_ALL";
 export type Platform = "xiaohongshu" | "wechat" | "all";
 
 // 文章数据类型

@@ -120,6 +120,7 @@ export default function ArticlePage({
   const statusColor = {
     DRAFT: "bg-gray-100 text-gray-700",
     PENDING: "bg-orange-100 text-orange-700",
+    PUBLISHED: "bg-blue-100 text-blue-700",
     PUBLISHED_XHS: "bg-red-100 text-red-700",
     PUBLISHED_WECHAT: "bg-green-100 text-green-700",
     PUBLISHED_ALL: "bg-purple-100 text-purple-700",
