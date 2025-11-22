@@ -464,14 +464,18 @@ export default function MaterialLibraryPage() {
                                     🔗 查看原文
                                   </button>
                                   <Link
-                                    href={`/?tab=xiaohongshu-rewrite${
-                                      article.images && Array.isArray(article.images) && article.images.length > 0
-                                        ? `&images=${encodeURIComponent(JSON.stringify(article.images))}`
-                                        : ''
-                                    }&content=${encodeURIComponent((article.title || '') + '\n\n' + (article.content || ''))}`}
+                                    href={
+                                      material.searchType.includes('wechat')
+                                        ? `/?tab=topic-analysis&content=${encodeURIComponent((article.title || '') + '\n\n' + (article.content || ''))}`
+                                        : `/?tab=xiaohongshu-rewrite${
+                                            article.images && Array.isArray(article.images) && article.images.length > 0
+                                              ? `&images=${encodeURIComponent(JSON.stringify(article.images))}`
+                                              : ''
+                                          }&content=${encodeURIComponent((article.title || '') + '\n\n' + (article.content || ''))}`
+                                    }
                                   >
                                     <button className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs rounded-lg hover:shadow-md transition-all flex items-center gap-1">
-                                      ✨ 小红书二创
+                                      {material.searchType.includes('wechat') ? '✨ 公众号二创' : '✨ 小红书二创'}
                                     </button>
                                   </Link>
                                   <button
