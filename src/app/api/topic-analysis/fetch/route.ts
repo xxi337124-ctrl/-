@@ -49,7 +49,7 @@ async function fetchWechatArticles(keyword: string) {
         mode: 1,
         period: 7,
         page: 1,
-        key: process.env.WECHAT_API_KEY,
+        key: process.env.DAJIALA_API_KEY || process.env.WECHAT_API_KEY,
         any_kw: '',
         ex_kw: '',
         verifycode: '',
@@ -97,7 +97,7 @@ async function fetchAccountArticles(accountName: string) {
         biz: "",
         url: "",
         name: accountName,
-        key: process.env.WECHAT_API_KEY,
+        key: process.env.DAJIALA_API_KEY || process.env.WECHAT_API_KEY,
         verifycode: ""
       }),
     });
