@@ -71,9 +71,26 @@ export async function POST(request: NextRequest) {
 
 /**
  * 加载提示词设置
- * 直接使用默认提示词（数据库settings表可能不存在）
+ * 从数据库读取用户设置,如果不存在则使用默认提示词
  */
 async function loadPrompts() {
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    const settings = await prisma.prompt_settings.findUnique({
+      where: { userId: 'default' }
+    });
+
+    if (settings) {
+      console.log('📝 已加载用户自定义提示词');
+      return {
+        xiaohongshuTextPrompt: settings.xiaohongshuTextPrompt || DEFAULT_TEXT_PROMPT,
+        imageAnalysisPrompt: settings.imageAnalysisPrompt || DEFAULT_IMAGE_ANALYSIS_PROMPT,
+      };
+    }
+  } catch (error) {
+    console.warn('⚠️ 加载提示词设置失败,使用默认值:', error);
+  }
+
   console.log('📝 使用默认提示词');
   return {
     xiaohongshuTextPrompt: DEFAULT_TEXT_PROMPT,
